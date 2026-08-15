@@ -1,0 +1,44 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 3,
+  "prompt_name": "Dashboard Endpoint Testing",
+  "endpoint_name": "Bank Dashboard Summary",
+  "route": "/api/v1/bank/dashboard/summary",
+  "method": "GET",
+  "handler_function": "get_dashboard_summary (app/routes/bank.py:112), delegates to compute_dashboard_summary (app/services/bank_dashboard.py:41)",
+  "dataset_used": "scanwick_bank_savings_clean.csv",
+  "account_id_tested": "49cfae02-da8e-44c6-a1a6-93a2433a6cf3",
+  "response_schema_valid": true,
+  "response_envelope_valid": true,
+  "envelope_evidence": "app/schemas/envelope.py:success_response -- confirmed exact shape.",
+  "metrics_verified": ["inflows", "outflows", "balance.opening_balance", "balance.closing_balance", "credit_debit_split.credit_count", "credit_debit_split.debit_count", "top_payees_by_outflow", "top_income_sources"],
+  "recomputed_values": {
+    "inflows": "892774.81",
+    "outflows": "0",
+    "credit_count": 486,
+    "debit_count": 0,
+    "eligible_row_count": 486,
+    "recompute_method": "Direct SQL against bank_transactions WHERE account_id=... AND is_anomalous=0 AND is_own_account_transfer=0.",
+    "cross_check_without_transfer_filter": {
+      "outflow_if_transfer_exclusion_removed": "3794287.92",
+      "debit_count_if_transfer_exclusion_removed": 905,
+      "note": "This isolates exactly what the transfer-exclusion is doing: suppressing 100% of this account's real recorded spending."
+    }
+  },
+  "endpoint_values": {
+    "inflows": "892774.81",
+    "outflows": "0",
+    "credit_count": 486,
+    "debit_count": 0
+  },
+  "mismatches": [],
+  "issues_found": [
+    "CRITICAL: 933 of 933 debit transactions in this account (100%) are flagged is_own_account_transfer=True, confirmed directly via SQL (SELECT COUNT(*) WHERE account_id=... AND amount<0 AND is_own_account_transfer=1 = 933; total debits in the file per Prompt 1 = 933). This means the dashboard's outflows figure for this account is 0 -- not because the account had no spending, but because every single real debit was matched by the greedy detect_own_account_transfers() pairing against a credit somewhere else (most likely the wallet account, which has 2,496 credits and many round-number amounts). The endpoint's calculation is verified CORRECT given the flags in the database; the flags themselves are the problem.",
+    "The wallet account's debits show a smaller but still real contamination: 240 of 5,662 (~4.2%) flagged transfer=True -- consistent with roughly 933+240=1,173 of the 1,197 total matched pairs from Prompt 2 being between the savings and wallet accounts specifically (the two largest, most transaction-dense accounts in this test run), which is exactly the condition under which a same-day/same-amount-tolerance greedy matcher is most likely to produce false positives at volume.",
+    "This is a direct, dashboard-observable consequence of two things already flagged in Prompt 2: (1) is_own_account_transfer detection is not scoped or safeguarded against false-positive-prone conditions (many transactions, common round amounts, multiple real accounts), and (2) it was run once, manually, across all accounts present at that time as a single global pass -- the QA script's own recommended verification step (calling the real function) is what surfaced this, not code reading."
+  ],
+  "status": "fail",
+  "summary": "The dashboard endpoint's arithmetic is exactly correct given its inputs (verified via independent SQL recomputation). However, the underlying is_own_account_transfer data for this account is severely and demonstrably wrong: 100% of this account's real debit transactions (933/933) are excluded from the outflow total, which would present as 'this account has zero spending' to anyone using the dashboard -- a materially misleading result for a real business's savings account. This is graded FAIL because the dashboard output itself (not just an internal flag) is factually wrong for this account as currently populated.",
+  "can_proceed_to_prompt_4": true,
+  "can_proceed_to_prompt_4_caveat": "Prompt 4 (diagnostics) can proceed on the same data, but any diagnostic relying on eligible_transactions() (income-stability, ABM, cashflow-analysis, etc.) will inherit this exact same contamination for the savings account -- flag this explicitly when interpreting Prompt 4 results for this account, don't treat it as a fresh finding there."
+}

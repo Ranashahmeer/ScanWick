@@ -1,0 +1,52 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 6,
+  "prompt_name": "AI Layer Testing",
+  "dataset_name": "scanwick_test_ecommerce_orders.csv",
+  "merchant_id_tested": "11111111-1111-1111-1111-111111111111",
+  "ai_endpoint_discovery": {
+    "endpoint": {"name": "Ecommerce AI Playbook", "route": "GET /api/v1/ecommerce/ai/playbook", "handler": "get_ai_playbook (app/routes/ecommerce.py:246)", "service": "get_ecommerce_playbook_response (app/services/ecommerce_playbook.py:12)", "generator": "generate_recommendations (app/services/recommendation_generation.py, shared with Bank/Sales)"},
+    "count": "Exactly 1 Ecommerce AI endpoint exists -- confirmed via full route-file grep, not a build-completeness gap.",
+    "context_scope_finding": "The AI's context is built exclusively from compute_profit_leaks + compute_dead_stock + compute_inventory_forecast (ecommerce_playbook.py:12-40) -- RFM segments and churn-risk (both verified-correct in Prompt 5) are NEVER included in the AI's context at all, confirmed via full code reading. A real scope limitation, not a defect."
+  },
+  "response_envelope_verification": {"status": 200, "shape": "Confirmed exact {success, data, meta:{missing_fields, disabled_features, analysis_run_id}}", "disabled_features": [], "note": "Correctly empty -- this merchant's profit_leaks is not disabled (0% COGS missing)."},
+  "schema_validation": {
+    "recommendations_checked": 8,
+    "result": "0 schema violations. entity_type always the valid literal 'sku'; urgency always one of this_week/this_month/this_quarter; confidence_score always within [0.0,1.0] (range observed: 0.8-0.95); all string fields non-empty; created_at syntactically valid ISO 8601 (though fabricated, see E6-2). All 8 real leaking SKUs from profit_leaks produced exactly 1 recommendation each -- 0 silently dropped."
+  },
+  "grounding_verification": {
+    "objective": "Cross-check every AI-generated numerical claim against real Prompt 4 profit_leaks data.",
+    "per_recommendation_checks": [
+      {"sku": "LMP-014", "ai_claimed_net_margin": -17750500.0, "real_prompt4_net_margin": -17750500.0, "match": true, "ai_claimed_primary_driver": "returns_cost ($1,120,000)", "real_leak_breakdown_returns_cost": 1120000.0, "match_driver_amount": true},
+      {"sku": "RUG-220", "ai_claimed_net_margin": -5755000.0, "real_prompt4_net_margin": -5755000.0, "match": true, "ai_claimed_primary_driver": "shipping_cost ($990,000)", "real_leak_breakdown_shipping_cost": 990000.0, "match_driver_amount": true},
+      {"sku": "MIR-040", "ai_claimed_net_margin": -1940600.0, "real_prompt4_net_margin": -1940600.0, "match": true},
+      {"sku": "VAS-031", "ai_claimed_net_margin": -1193500.0, "real_prompt4_net_margin": -1193500.0, "match": true},
+      {"sku": "CSH-088", "ai_claimed_net_margin": -687000.0, "real_prompt4_net_margin": -687000.0, "match": true},
+      {"sku": "THR-052", "ai_claimed_net_margin": -966800.0, "real_prompt4_net_margin": -966800.0, "match": true},
+      {"sku": "TRY-009", "ai_claimed_net_margin": -904900.0, "real_prompt4_net_margin": -904900.0, "match": true},
+      {"sku": "PLT-118", "ai_claimed_net_margin": -330600.0, "real_prompt4_net_margin": -330600.0, "match": true}
+    ],
+    "revenue_at_stake_rule": "Confirmed revenue_at_stake = abs(net_margin) exactly for all 8 recommendations -- a consistent, traceable grounding rule, not fabricated.",
+    "hallucinations_found": "None -- every numerical claim in every recommendation's trigger_condition/reasoning text traces to a real, already-verified Prompt 4 value. The only fabricated content is in 2 schema-required fields with no real anchor in the context (currency, created_at -- see issues below), not invented facts about the business.",
+    "e4_2_propagation_finding": {
+      "finding": "All 8 recommendations echo profit_leaks' primary_leak_driver uncritically in their reasoning text (e.g. LMP-014: 'Returns cost is identified as the primary driver...'; 7 of 8 cite shipping_cost). E4-2 already proved this attribution excludes COGS entirely -- for LMP-014, COGS (32,088,000, ~93% of real total cost) is never part of leak_breakdown and therefore never visible to the AI, yet the AI confidently tells a decision-maker to investigate returns/shipping instead. Direct, AI-layer-confirmed downstream impact of E4-2, referenced not duplicated.",
+      "cross_reference": "E4-2"
+    },
+    "e2_2_propagation_finding": "All 8 recommendations' dollar figures reflect the merchant's duplicated (E2-2) 1,964-order dataset -- referenced, not duplicated."
+  },
+  "sparse_data_and_reliability": {
+    "inventory_forecast_hallucination_check": "inventory_forecast (8 SKUs, all predicted_stockout_date=null per E5-1) was part of this merchant's AI context. The AI produced ZERO stockout-related recommendations -- correctly stayed silent on this ungrounded input rather than fabricating a stockout claim. Positive confirmation, referenced as E5-1's downstream (non-)impact."
+  },
+  "new_issues_found": {
+    "E6-1": "currency='USD' fabricated for all 8 recommendations -- confirmed the context dict passed to Gemini contains no currency field anywhere (profit_leaks/dead_stock/inventory_forecast output shapes checked), despite this merchant's real data being 100% NGN. Medium severity.",
+    "E6-2": "created_at='2023-10-27T10:00:00Z' fabricated for all 8 recommendations -- same placeholder pattern already confirmed cross-vertical in Bank's B6-3, confirming the shared root cause in recommendation_generation.py's _PROMPT_TEMPLATE. Low severity."
+  },
+  "issue_propagation_summary": {
+    "propagates": ["E4-2 (leak_breakdown/primary_leak_driver echoed uncritically in AI narrative)", "E2-2 (all dollar figures reflect duplicated data)", "E5-1 (confirmed AI correctly stays silent, no hallucination)"],
+    "does_not_apply": ["E1-3", "E1-4", "E1-5", "E2-3", "E2-4/E3-1", "E3-2", "E3-3", "E4-1", "E4-3 (not observed for this merchant -- dead_stock_count=0, no dead-stock content ever reached the AI)"],
+    "new_issues_this_prompt": ["E6-1", "E6-2"]
+  },
+  "status": "pass_with_issues",
+  "summary": "The Ecommerce AI playbook is implemented, schema-compliant, and factually well-grounded for this merchant -- every one of 8 real Gemini-generated recommendations' numerical claims traced exactly to already-verified Prompt 4 data, with zero hallucinated facts. However, the AI uncritically propagates E4-2's misleading root-cause attribution (COGS never shown, shipping/returns blamed instead) into confident-sounding advice, and 2 schema-required fields (currency, created_at) are fabricated with no real anchor in the AI's context -- new issues E6-1 and E6-2.",
+  "can_proceed_to_prompt_7": true
+}

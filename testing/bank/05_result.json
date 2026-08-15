@@ -1,0 +1,199 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 5,
+  "prompt_name": "Predictive Model Testing",
+  "predictive_endpoints": [
+    {
+      "endpoint_name": "Fraud Risk",
+      "route": "/api/v1/bank/predictive/fraud-risk",
+      "method": "GET",
+      "source_file": "app/routes/bank.py",
+      "handler_function": "get_fraud_risk (line 219)",
+      "service_function": "compute_fraud_risk (app/services/bank_fraud_risk.py:218)",
+      "model_implementation": "Rule-based weighted composite (not a trained ML model): z_score_anomaly (30%), structuring (30%), duplicate_payee (20%), timing_anomaly (20%); each category's sub-score = min(100, flag_count*25); risk_level thresholds: >=75 critical, >=50 high, >=25 medium, else low.",
+      "authentication": "JWT (get_current_user) + RBAC check_role, READ_ROLES; additionally redacts transaction-level flag fields for Loan Officer/Bank Viewer roles via redact_flags_for_loan_officer",
+      "response_schema": "{fraud_risk_score:int, risk_level:str, flags:[], statement_integrity:{balance_check,date_continuity,sequential_ordering}, score_breakdown:{}} wrapped in shared envelope"
+    },
+    {
+      "endpoint_name": "Loan Readiness",
+      "route": "/api/v1/bank/predictive/loan-readiness",
+      "method": "GET",
+      "source_file": "app/routes/bank.py",
+      "handler_function": "get_loan_readiness (line 244)",
+      "service_function": "compute_loan_readiness (app/services/bank_loan_readiness.py:218)",
+      "model_implementation": "Weighted composite of 4 components (income_stability 30%, abm_trend 25%, fraud_risk_inverted 25%, cash_buffer 20%), re-normalized over whichever components are non-null; internally calls compute_fraud_risk, compute_income_stability, compute_abm, compute_cash_buffer, compute_estimated_debt_coverage.",
+      "authentication": "Same as above; no redaction needed (never propagates raw fraud flags)",
+      "response_schema": "{loan_readiness_score:int, creditworthiness_tier:str, tier_definition:str, score_breakdown:{}, disabled_components:[], improvement_recommendations:[], estimated_debt_coverage_indicator:{}} wrapped in shared envelope"
+    },
+    {
+      "endpoint_name": "Cashflow Forecast",
+      "route": "/api/v1/bank/predictive/cashflow-forecast",
+      "method": "GET",
+      "source_file": "app/routes/bank.py",
+      "handler_function": "get_cashflow_forecast (line 265)",
+      "service_function": "compute_cashflow_forecast (app/services/bank_cashflow_forecast.py:97)",
+      "model_implementation": "Random-walk daily balance projection (90 days): projected_balance(i) = current_balance + avg_daily_net*i, with an 80% confidence band widening by sqrt(i); plus a primary/stress cash-runway estimate (stress = 20% income reduction) and recurring-commitment projection.",
+      "authentication": "Same as above",
+      "response_schema": "{forecast_days, base_date, daily_forecast:[90 points], cash_runway:{primary_scenario_months, stress_scenario_months, stress_assumption}, recurring_commitments_projected:[]} wrapped in shared envelope"
+    }
+  ],
+  "implemented_models": ["fraud-risk", "loan-readiness", "cashflow-forecast"],
+  "missing_models": [],
+  "datasets_used": [
+    {"dataset": "scanwick_test_bank_statement.csv", "account_id": "a8b7128c-fd10-42f9-90df-b7585cc6973a", "note": "canonical account, closing_balance negative (-6,521,829.63) -- an already-overdrawn real-world case"},
+    {"dataset": "scanwick_bank_savings_clean.csv", "account_id": "49cfae02-da8e-44c6-a1a6-93a2433a6cf3", "note": "known transfer-flag contamination (B3-1) and balance-integrity failure (B2-3)"},
+    {"dataset": "scanwick_bank_wallet_clean.csv", "account_id": "b70312cb-343a-43f4-be5b-1bf96ad51baa", "note": "known balance-integrity failure (B2-3), closing_balance exactly 0.0"}
+  ],
+  "response_schema_valid": true,
+  "response_envelope_valid": true,
+  "prediction_validation": [
+    {
+      "model": "fraud-risk",
+      "account": "primary (a8b7128c)",
+      "returned": {"fraud_risk_score": 50, "risk_level": "high"},
+      "hand_recomputed_from_flags": "11 z_score flags (subscore 100, capped) + 0 structuring + 0 duplicate_payee + 12 timing flags (subscore 100, capped) -> 0.30*100+0.30*0+0.20*0+0.20*100=50",
+      "match": true,
+      "range_valid": true,
+      "note": "statement_integrity.sequential_ordering='failed' -- plausibly caused by the ambiguous debit+credit row (B1-1, row 158), which nets to a combined signed amount that may not exactly satisfy prev.balance_after+curr.amount==curr.balance_after."
+    },
+    {
+      "model": "fraud-risk",
+      "account": "savings (49cfae02)",
+      "returned": {"fraud_risk_score": 35, "risk_level": "medium"},
+      "hand_recomputed_from_flags": "13 z_score flags (subscore 100, capped) + 0 structuring + 1 duplicate_payee (subscore 25) + 0 timing -> 0.30*100+0.30*0+0.20*25+0.20*0=35",
+      "match": true,
+      "range_valid": true,
+      "note": "statement_integrity all 'failed' (balance_check, date_continuity, sequential_ordering) -- consistent with B2-3 (balance discrepancy) and B1-2/B2-3 (large date gaps)."
+    },
+    {
+      "model": "fraud-risk",
+      "account": "wallet (b70312cb)",
+      "returned": {"fraud_risk_score": 78, "risk_level": "critical"},
+      "hand_recomputed_from_flags": "78 >= 75 threshold -> critical, consistent with _risk_level table",
+      "match": true,
+      "range_valid": true,
+      "note": "statement_integrity all 'failed' -- consistent with B2-3 (largest balance discrepancy of the three files)."
+    },
+    {
+      "model": "loan-readiness",
+      "account": "primary (a8b7128c)",
+      "returned": {"loan_readiness_score": 62, "creditworthiness_tier": "B"},
+      "internal_consistency_check": "score_breakdown contributions sum to 24.6+25.0+12.5+0.0=62.1, rounds to 62 -- matches returned score exactly. fraud_risk_inverted.score=50 == 100-fraud_risk_score(50) from the fraud-risk endpoint -- cross-endpoint consistent.",
+      "match": true,
+      "range_valid": true,
+      "note": "abm_trend contributes 25.0/25.0 (full weight) because it is wrongly labeled 'improving' (issue B4-1, Prompt 4) despite the account's average balance genuinely worsening -- see issues_found for the quantified impact."
+    },
+    {
+      "model": "loan-readiness",
+      "account": "savings (49cfae02)",
+      "returned": {"loan_readiness_score": 20, "creditworthiness_tier": "D"},
+      "internal_consistency_check": "contributions sum to 0.0+0.0+20.3=20.3, rounds to 20 -- matches. cash_buffer correctly listed in disabled_components (not silently nulled) because total_outflow=0 due to B3-1 contamination.",
+      "match": true,
+      "range_valid": true
+    },
+    {
+      "model": "loan-readiness",
+      "account": "wallet (b70312cb)",
+      "returned": {"loan_readiness_score": 6, "creditworthiness_tier": "D"},
+      "internal_consistency_check": "contributions sum to 0.0+0.0+5.5+0.0=5.5, rounds to 6 -- matches.",
+      "match": true,
+      "range_valid": true
+    },
+    {
+      "model": "cashflow-forecast",
+      "account": "primary (a8b7128c)",
+      "returned": {"cash_runway": {"primary_scenario_months": -10.7, "stress_scenario_months": -5.9}},
+      "range_valid": false,
+      "directionally_reasonable": false,
+      "note": "See issues_found B5-1 -- the account's current_balance is already negative (-6,521,829.63), so both runway values come out negative, and the stress scenario's value (-5.9) is numerically GREATER (less negative) than the primary scenario's (-10.7), the opposite of the expected 'stress produces a shorter/worse runway' relationship. Hand-verified the underlying arithmetic is internally consistent given the formula (stress_net_burn > primary_net_burn, dividing a fixed negative balance by a larger positive denominator yields a less-negative result) -- the defect is in the formula/interpretation for already-overdrawn accounts, not an arithmetic error."
+    },
+    {
+      "model": "cashflow-forecast",
+      "account": "savings (49cfae02)",
+      "returned": {"cash_runway": {"primary_scenario_months": null, "stress_scenario_months": null}},
+      "range_valid": true,
+      "directionally_reasonable": true,
+      "note": "Correctly null: avg_monthly_net_burn is negative (this account's total_outflow=0 due to B3-1, so net_burn=0-inflow<0), and _cash_runway_months returns None for non-positive net_burn -- handled gracefully, not a bug, though it is a downstream symptom of B3-1."
+    },
+    {
+      "model": "cashflow-forecast",
+      "account": "wallet (b70312cb)",
+      "returned": {"cash_runway": {"primary_scenario_months": 0.0, "stress_scenario_months": 0.0}},
+      "range_valid": true,
+      "directionally_reasonable": true,
+      "note": "current_balance is exactly 0.0 for this account, so runway=0 regardless of burn rate in both scenarios -- a degenerate edge case of the same root formula gap noted in B5-1, but not independently misleading here since both scenarios agree."
+    }
+  ],
+  "paysim_evaluation": {
+    "supported": false,
+    "status": "Not Implemented",
+    "reason": "PS_20174392719_1491204439457_log.csv's columns (step, type, amount, nameOrig, oldbalanceOrg, newbalanceOrig, nameDest, oldbalanceDest, newbalanceDest, isFraud, isFlaggedFraud) do not match any keyword in COLUMN_CANDIDATES['date'] (app/utils/analyzer.py) -- 'step' is a sequential integer time-unit, not a calendar date, and does not contain any of the accepted date keywords ('date','timestamp','period','time', etc. as substrings). Forcing this file through ingest_bank_csv would reject 100% of rows (transaction_date would be None for every row, and _is_bank_row_rejected requires transaction_date). Additionally, compute_fraud_risk (app/services/bank_fraud_risk.py:218) requires list[BankTransaction] -- real ORM objects with .transaction_date, .id (UUID), .original_currency, .payee_normalized, .balance_after -- none of which PaySim's raw columns populate without a custom field mapping.",
+    "action_taken": "None -- no adapter, temporary mapping, or code change was written, per this prompt's explicit instruction. Verified via direct inspection of app/utils/analyzer.py's COLUMN_CANDIDATES and compute_fraud_risk's signature, and via the real PaySim file's actual header row.",
+    "records_processed": 0,
+    "precision": null,
+    "recall": null,
+    "f1_score": null,
+    "accuracy": null,
+    "confusion_matrix": null
+  },
+  "minimum_data_behaviour": [
+    {
+      "model": "fraud-risk",
+      "test": "empty transaction list (in-memory call, no DB writes)",
+      "result": "{fraud_risk_score: 0, risk_level: 'low', flags: [], statement_integrity: {balance_check: 'not_checked', date_continuity: 'passed', sequential_ordering: 'passed'}}",
+      "graceful": true,
+      "note": "No disabled_features mechanism exists for this endpoint at all (route never passes one) -- it always returns a concrete score, defaulting to 0/low with zero data rather than signaling 'insufficient data to assess'. Not a crash, but a client cannot distinguish 'verified low risk' from 'no data available'."
+    },
+    {
+      "model": "loan-readiness",
+      "test": "empty transaction list (in-memory call, no DB writes)",
+      "result": "{loan_readiness_score: 100, creditworthiness_tier: 'A', disabled_components: ['income_stability','abm_trend','cash_buffer'], score_breakdown: {fraud_risk_inverted: {score:100, contribution:100.0}}}",
+      "graceful": true,
+      "note": "Technically graceful (no crash, disabled_components correctly lists the 3 unavailable components) but produces a CRITICAL defect -- see issues_found B5-2."
+    },
+    {
+      "model": "cashflow-forecast",
+      "test": "empty transaction list (in-memory call, no DB writes)",
+      "result": "{daily_forecast: [90 points, all projected_balance=0, confidence bands=0], cash_runway: {primary_scenario_months: null, stress_scenario_months: null}, recurring_commitments_projected: []}",
+      "graceful": true,
+      "note": "No disabled_features signal either, but the all-zero/null output is honest (not misleading) given zero input data."
+    }
+  ],
+  "previous_issue_impact": [
+    {
+      "prior_issue": "B4-1 (ABM trend sign-incorrect for negative-baseline accounts, found in Prompt 4)",
+      "models_affected": ["loan-readiness"],
+      "observed_effect": "For the primary account, abm_trend is wrongly labeled 'improving' (should be 'declining' given the account's average balance genuinely worsened). This contributes the full 25.0/25.0 weighted points to the loan_readiness_score (62 total) -- correcting the label to 'declining' would substantially lower both the score and likely the creditworthiness_tier. It also SUPPRESSES a legitimate 'improve your average balance trend' recommendation in improvement_recommendations, since _build_recommendations only generates that recommendation when trend != 'improving'.",
+      "new_behavior_observed": true,
+      "note": "This is a newly-quantified, concrete manifestation of B4-1 discovered in this prompt (Prompt 4 only found the mislabeling itself on the abm endpoint; Prompt 5 discovers its measurable downstream effect on a different endpoint's composite score and recommendation logic) -- logged as new issue B5-3, cross-referenced to B4-1, not a duplicate."
+    },
+    {
+      "prior_issue": "B3-1 (is_own_account_transfer contamination, savings account, Prompt 3)",
+      "models_affected": ["loan-readiness", "cashflow-forecast"],
+      "observed_effect": "loan-readiness correctly lists 'cash_buffer' in disabled_components for the savings account (graceful, properly signaled) rather than silently returning a wrong number. cashflow-forecast correctly returns null cash_runway for the same reason. Both are graceful degradations of the same known upstream contamination, not new defects.",
+      "new_behavior_observed": false
+    },
+    {
+      "prior_issue": "B2-3 (balance-integrity failures, savings/wallet accounts, Prompt 2)",
+      "models_affected": ["fraud-risk"],
+      "observed_effect": "fraud-risk's statement_integrity.balance_check correctly reports 'failed' for both the savings and wallet accounts, consistent with their known balance-integrity failures, and 'passed' for the primary account, consistent with its passing integrity check. date_continuity also correctly reports 'failed' for both accounts with known large date gaps (B1-2). No incorrect fraud score resulted -- the integrity flags are informational fields alongside the score, not inputs to it.",
+      "new_behavior_observed": false
+    },
+    {
+      "prior_issue": "B1-1 (ambiguous debit+credit row, primary file, Prompt 1)",
+      "models_affected": ["fraud-risk"],
+      "observed_effect": "Plausibly explains the primary account's statement_integrity.sequential_ordering='failed' result (the only 'failed' field for an otherwise-passing account) -- the netted signed amount for that one row may not exactly satisfy the running-balance check. Not confirmed with certainty (would require isolating that single row), but the most likely explanation given no other data-quality issue exists for this file.",
+      "new_behavior_observed": true,
+      "note": "First observed concrete downstream effect of B1-1 (previously logged as 'handled gracefully, no impact' in Prompt 1) -- logged as new issue B5-4."
+    }
+  ],
+  "issues_found": [
+    "B5-1 (High): Cash-runway calculation (compute_cashflow_forecast / _cash_runway_months, app/services/bank_cashflow_forecast.py) produces backwards-appearing, misleading results for accounts with an already-negative current balance. For the primary account, primary_scenario_months=-10.7 and stress_scenario_months=-5.9 -- the stress scenario's number is numerically GREATER (less negative) than the primary scenario's, the opposite of the intended 'stress should show an equal-or-shorter runway' relationship. The underlying arithmetic is internally consistent given the formula; the defect is that the formula/interpretation was never designed for an already-overdrawn starting balance.",
+    "B5-2 (Critical): compute_loan_readiness produces a perfect loan_readiness_score=100 / creditworthiness_tier='A' for an account with ZERO transactions. Because income_stability/abm_trend/cash_buffer all correctly become unavailable (None) with no data, but fraud_risk_inverted does not (compute_fraud_risk returns a trivial 0-risk/100-inverted score for empty input), the re-normalization logic gives fraud_risk_inverted 100% of the weight, producing the single best possible score from having no verifiable financial history at all -- an insufficient-data account should not be able to score as maximally creditworthy.",
+    "B5-3 (High, newly-quantified impact of previously-known B4-1): The ABM trend mislabeling (B4-1, Prompt 4) is confirmed to inflate the primary account's loan_readiness_score by the full 25-point abm_trend weight and to suppress a legitimate improvement_recommendations entry that should have fired for a genuinely worsening account.",
+    "B5-4 (Low, newly-observed concrete effect of previously-known B1-1): The primary file's one ambiguous debit+credit row (B1-1, Prompt 1) plausibly causes fraud-risk's statement_integrity.sequential_ordering check to report 'failed' for an otherwise fully-passing account -- not confirmed with row-level certainty, but the only plausible explanation given no other anomaly exists in that file."
+  ],
+  "status": "pass_with_issues",
+  "summary": "All 3 predictive endpoints are implemented, correctly authenticated/RBAC-gated, and return the shared envelope shape. fraud-risk and loan-readiness scores were hand-recomputed from their component parts and matched the endpoint output exactly across all 3 accounts, including a cross-endpoint consistency check (loan-readiness's fraud_risk_inverted score correctly derives from the fraud-risk endpoint's own score). PaySim evaluation is confirmed Not Implemented, with precise evidence, and was not worked around. Two new defects were found: cashflow-forecast's cash-runway calculation produces backwards-appearing results for already-overdrawn accounts (B5-1), and loan-readiness can score a zero-transaction account as perfectly creditworthy (B5-2, Critical) -- both are genuine model-correctness issues, not test-environment artifacts. Additionally, Prompt 4's ABM trend-labeling bug was confirmed to have a concrete, quantified downstream effect on the loan-readiness score and recommendations (B5-3), and Prompt 1's ambiguous-row finding was linked to a concrete fraud-risk integrity-check effect (B5-4).",
+  "can_proceed_to_prompt_6": true
+}

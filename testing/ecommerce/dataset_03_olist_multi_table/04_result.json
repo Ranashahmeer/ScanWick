@@ -1,0 +1,38 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 4,
+  "prompt_name": "Diagnostics Endpoint Testing",
+  "dataset_name": "Olist multi-table set (via ecommerce_olist_adapter.py)",
+  "merchant_id_tested": "33333333-3333-3333-3333-333333333333",
+  "response_envelope_verification": {"all_3_endpoints": "Confirmed exact {success, data, meta:{...}} shape, including a correctly-populated disabled_features entry for profit-leaks.", "schema_compliant": true},
+  "profit_leaks_verification": {
+    "endpoint_returned": {"data": null, "disabled_features": [{"feature_name": "profit_leak_detector", "reason": "COGS is missing for 100.0% of line items (exceeds the 20% threshold).", "data_needed": "unit_cogs on order_items"}]},
+    "independently_recomputed": {"coverage_missing_pct": 100.0, "coverage_disabled": true},
+    "match": true,
+    "note": "Correctly disabled -- 112,650 real order_items, 100% missing unit_cogs (Olist has no cost data, confirmed Prompt 1/2), correctly exceeding the 20% threshold and returning data=None (not a fabricated empty shape) alongside the disabled_features entry."
+  },
+  "dead_stock_verification": {
+    "endpoint_returned": {"dead_sku_count": 32951, "total_capital_at_risk": 0.0},
+    "independently_recomputed": {"dead_sku_count": 32951},
+    "match": true,
+    "wall_clock_finding": "Confirms E3-2 directly at the diagnostic-endpoint level (previously observed only via dashboard/summary's embedded value in Prompt 3): every one of Olist's 32,951 real distinct SKUs registers as dead stock, since compute_dead_stock's as_of parameter defaults to real wall-clock today (2026-07-11) and Olist's real order history ends 2018-09-03 -- ~8 years in the past. Sample dead_skus entries confirmed days_without_sale in the thousands (e.g. 3597, 3596) and recommended_action='write_off' for the oldest. Not a new issue -- same root cause, same evidence as E3-2.",
+    "total_capital_at_risk_finding": "total_capital_at_risk=0 despite 32,951 dead SKUs -- traced to compute_dead_stock summing only non-null estimated_carrying_cost values (all 32,951 are null here, 100% COGS-missing), defaulting the sum to 0 rather than an explicit null/unknown state. This makes '0 capital at risk' indistinguishable from 'unknown capital at risk' for a merchant whose entire catalog is flagged dead. NEW issue E4-3 (Low), logged once in QA_ISSUES.md, first observed for this dataset."
+  },
+  "return_forensics_verification": {
+    "endpoint_returned": {"return_patterns": []},
+    "finding": "Confirms E2-3's predicted impact -- 0 rows in the returns table for this merchant (112,650 real orders ingested, Olist has no returns concept in the 3 files the adapter reads), correctly producing an empty pattern list."
+  },
+  "thin_data_and_threshold_findings": {
+    "profit_leaks_threshold": "20% COGS-missing threshold correctly triggered at the real 100% missing rate.",
+    "dead_stock_threshold": "No disabled_features mechanism exists at all -- confirmed via code reading; this merchant's degenerate 'entire catalog is dead' result is a natural consequence of wall-clock comparison against old real data (E3-2), not a hidden threshold gap.",
+    "return_forensics_threshold": "No disabled_features mechanism exists at all -- confirmed via code reading."
+  },
+  "issue_propagation_summary": {
+    "propagates": ["E2-3 (return-forensics confirmed empty)", "E3-2 (dead_sku_count confirmed at the endpoint level)"],
+    "does_not_apply": ["E1-3 (no diagnostic references Order.status)", "E1-4/E1-5 (10k-file-specific, not applicable to Olist)", "E2-1 (no unit_net_margin data exists for this merchant -- profit-leaks correctly disabled before ever reaching any margin calculation)", "E2-2 (this merchant was not part of the duplicate-ingestion test)"],
+    "new_issues_this_prompt": ["E4-3"]
+  },
+  "status": "pass_with_issues",
+  "summary": "All 3 diagnostic endpoints return correct, schema-compliant output for this merchant. profit-leaks correctly disables at the real 100% COGS-missing rate. dead-stock correctly (if trivially, per the already-known E3-2 wall-clock caveat) flags the entire real catalog as dead stock, but its total_capital_at_risk=0 alongside 32,951 dead SKUs is a new, evidence-based finding (E4-3) that conflates 'unknown' with 'zero.' return-forensics confirmed empty, directly proving E2-3's predicted impact.",
+  "can_proceed_to_prompt_5": true
+}

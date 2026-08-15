@@ -1,0 +1,90 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  # Audit #12: the API stages an uploaded CSV/PDF before dispatching a
+  # Celery task to process it. Originally staged to a hardcoded
+  # /tmp/scanwick_uploads path, which only worked because this compose
+  # file mounted the same named volume into both containers — that trick
+  # doesn't exist on platforms where the API and worker are independently
+  # deployed services with no shared filesystem (e.g. Railway), so staging
+  # now goes through the same app/services/storage.py abstraction every
+  # other file (avatars, PDFs, exports) already uses. Locally that's still
+  # the "local" backend, so both services still need to see the same
+  # files — done here by pointing LOCAL_STORAGE_DIR at the same named
+  # volume instead of the storage code depending on a fixed path. In
+  # production, set STORAGE_BACKEND=s3 (e.g. Cloudflare R2) on both
+  # services instead, and neither needs this volume at all.
+  api:
+    build:
+      context: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - ./backend/.env
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      LOCAL_STORAGE_DIR: /data/uploads
+    ports:
+      - "8000:8000"
+    volumes:
+      - upload-staging-data:/data/uploads
+    depends_on:
+      - redis
+
+  celery-worker:
+    build:
+      context: ./backend
+    command: celery -A app.celery_app worker --loglevel=info
+    env_file:
+      - ./backend/.env
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      LOCAL_STORAGE_DIR: /data/uploads
+    volumes:
+      - upload-staging-data:/data/uploads
+    depends_on:
+      - redis
+
+  # Without this, nothing ever dispatches the scheduled jobs in
+  # celery_app.py's beat_schedule (currently just the hourly FX-rate sync)
+  # — the worker only executes tasks it's handed, it doesn't generate them
+  # on a timer by itself. Same image as celery-worker, just a different
+  # process.
+  celery-beat:
+    build:
+      context: ./backend
+    command: celery -A app.celery_app beat --loglevel=info
+    env_file:
+      - ./backend/.env
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      LOCAL_STORAGE_DIR: /data/uploads
+    depends_on:
+      - redis
+
+  # S3-compatible storage for dev. Only used if the backend app is run with
+  # STORAGE_BACKEND=s3 and S3_ENDPOINT_URL=http://localhost:9000 — the
+  # default dev backend is the local filesystem and doesn't need this.
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+
+volumes:
+  redis-data:
+  minio-data:
+  upload-staging-data:

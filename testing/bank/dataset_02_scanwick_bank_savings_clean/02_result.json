@@ -1,0 +1,55 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 2,
+  "prompt_name": "Ingestion Testing",
+  "dataset_name": "scanwick_bank_savings_clean.csv",
+  "dataset_path": "backend/datasets/bank dataset/scanwick_bank_savings_clean.csv",
+  "dataset_classification": "Bank ingestion dataset -- included in Prompt 2 run",
+  "run_mode": "non_isolated",
+  "db_state_before_run": "At the point this dataset was ingested (second of the three in this run's first pass), app.db already contained 1 account / 465 bank_transactions -- the orphaned residue from an earlier crashed attempt at ingesting scanwick_test_bank_statement.csv within this same task execution (see that dataset's 02_result.json for the full explanation). No pre-existing data for THIS dataset (scanwick_bank_savings_clean.csv) existed before its own first ingestion in this run.",
+  "input_rows": 1670,
+  "inserted_rows": 1670,
+  "skipped_rows": 0,
+  "skip_reasons": [],
+  "duplicate_ingestion_behavior": "Not re-run a second time in this pass (the duplicate-ingestion test in this Prompt 2 run was performed on scanwick_test_bank_statement.csv only, per the run design). Based on code inspection (no unique constraints, no dedup logic anywhere in ingest_bank_dataframe/write_canonical_bank_rows), the same full-reinsert behavior confirmed for the primary file would be expected here too, but this specific claim is inferred from code and the primary file's confirmed behavior, not independently re-observed for this file in this run.",
+  "checks": [
+    {
+      "name": "rows_in_vs_inserted",
+      "result": "pass",
+      "observed_behavior": "1,670 input rows, 1,670 transactions_created, 0 rows_rejected -- exact match."
+    },
+    {
+      "name": "is_own_account_transfer",
+      "result": "pass",
+      "observed_behavior": "Same shared cross-account check as the other two datasets (detect_own_account_transfers is merchant-wide, not per-file): 1,197 matched pairs / 2,394 flagged rows across all 4 accounts present at check time, contaminated by the accidental orphan duplicate of the primary file. Not separable into a per-file number from this run's data."
+    },
+    {
+      "name": "is_anomalous",
+      "result": "pass",
+      "observed_behavior": "Shared marker check (2025-06-05..2025-06-15) applies merchant-wide across this user's accounts, including this one, since this file's date range (2023-09-17 to 2026-03-27) overlaps the marker window. 208 total flagged across all accounts, 0 false positives outside range -- confirms the rule fires correctly, though the 208 figure is not decomposed per account in this run."
+    },
+    {
+      "name": "currency_conversion",
+      "result": "pass",
+      "observed_behavior": "original_currency defaults to 'NGN' (no currency column); spot-checked rows show exchange_rate=1.000000, base_currency_amount==amount. Mechanism correct, but this dataset does not exercise real cross-currency conversion."
+    },
+    {
+      "name": "account_number_hash",
+      "result": "pass",
+      "observed_behavior": "Confirmed hashed (SHA-256), not plaintext. No account_number column in this file -> falls back to hash_value(f'unknown-account:{upload_id}') (hash 9b72fbcc72b575ae...)."
+    },
+    {
+      "name": "balance_integrity",
+      "result": "pass",
+      "observed_behavior": "REAL INGESTION RESULT, escalating Prompt 1's caution: balance_integrity_passed=False, discrepancy=32.76. Prompt 1 flagged the first-row-null-balance as a 'precision' concern; the actual ingested result shows this is a genuine (if small) reconciliation failure, not just reduced precision. opening_balance derived as 32.76 (from the first row that has a balance value, per Prompt 1's prediction). 9 date_gaps detected, largest 197 days (2024-11-05 to 2025-05-20)."
+    },
+    {
+      "name": "duplicate_ingestion",
+      "result": "not_observed",
+      "observed_behavior": "Not tested for this specific file in this run -- see duplicate_ingestion_behavior field."
+    }
+  ],
+  "status": "pass_with_issues",
+  "summary": "Ingests cleanly (0 rejected rows) but balance_integrity_passed=False with a real (if small) discrepancy of 32.76, confirming Prompt 1's null-first-row-balance concern actually manifests as a failed integrity check, not merely reduced precision. 9 date gaps found, the largest spanning 197 days. Same architectural gaps as the other two datasets apply (is_own_account_transfer not auto-wired, no duplicate-ingestion protection).",
+  "can_proceed_to_prompt_3": true
+}

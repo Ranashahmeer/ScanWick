@@ -1,0 +1,213 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 4,
+  "prompt_name": "Diagnostics Endpoint Testing",
+  "diagnostic_endpoints": [
+    {
+      "endpoint_name": "Income Stability",
+      "route": "/api/v1/bank/diagnostic/income-stability",
+      "method": "GET",
+      "source_file": "app/routes/bank.py",
+      "handler_function": "get_income_stability (line 129)",
+      "service_functions": ["get_income_stability_response (app/services/bank_income_stability.py)", "compute_income_stability (app/services/bank_loan_readiness.py)"],
+      "authentication": "JWT (get_current_user) + RBAC check_role, READ_ROLES (bank_owner/bank_admin/loan_officer/bank_viewer)",
+      "response_schema": "{score:int, label:str, cv_pct:float} wrapped in shared envelope"
+    },
+    {
+      "endpoint_name": "ABM (Average Bank Balance)",
+      "route": "/api/v1/bank/diagnostic/abm",
+      "method": "GET",
+      "source_file": "app/routes/bank.py",
+      "handler_function": "get_abm (line 146)",
+      "service_functions": ["get_abm_response (app/services/bank_abm.py)", "compute_abm, compute_daily_closing_balances (app/services/bank_loan_readiness.py)"],
+      "authentication": "Same as above",
+      "response_schema": "{abm_3m:float, abm_6m:float, abm_12m:float, trend:str, score:int} wrapped in shared envelope"
+    },
+    {
+      "endpoint_name": "Cashflow Analysis",
+      "route": "/api/v1/bank/diagnostic/cashflow-analysis",
+      "method": "GET",
+      "source_file": "app/routes/bank.py",
+      "handler_function": "get_cashflow_analysis (line 163)",
+      "service_functions": ["compute_cashflow_analysis (app/services/bank_cashflow_analysis.py)", "detect_recurring_payees (app/services/bank_cashflow.py)", "classify_mode, classify_business_or_personal (app/services/bank_transaction_classification.py)"],
+      "authentication": "Same as above",
+      "response_schema": "{cash_buffer_months, expense_concentration_ratio_pct, recurring_vs_variable, by_payment_mode[], business_vs_personal[]} wrapped in shared envelope"
+    },
+    {
+      "endpoint_name": "Customer Segmentation",
+      "route": "/api/v1/bank/diagnostic/customer-segmentation",
+      "method": "GET",
+      "source_file": "app/routes/bank.py",
+      "handler_function": "get_customer_segmentation (line 180)",
+      "service_functions": ["compute_customer_segmentation (app/services/bank_customer_segmentation.py)"],
+      "authentication": "Same as above",
+      "response_schema": "{segments:{key_relationships[],frequent_small[],occasional_large[],minor[]}, median_occurrence_count, median_total_amount} wrapped in shared envelope"
+    },
+    {
+      "endpoint_name": "Revenue Patterns",
+      "route": "/api/v1/bank/diagnostic/revenue-patterns",
+      "method": "GET",
+      "source_file": "app/routes/bank.py",
+      "handler_function": "get_revenue_patterns (line 197)",
+      "service_functions": ["compute_revenue_patterns (app/services/bank_revenue_patterns.py)"],
+      "authentication": "Same as above",
+      "response_schema": "{peak_day_of_month, peak_day_of_week, monthly_index[], seasonality_detected, seasonality_confidence, months_available} wrapped in shared envelope"
+    }
+  ],
+  "implemented_diagnostics": ["income-stability", "abm", "cashflow-analysis", "customer-segmentation", "revenue-patterns"],
+  "missing_diagnostics": [],
+  "datasets_used": [
+    {"dataset": "scanwick_test_bank_statement.csv", "account_id": "a8b7128c-fd10-42f9-90df-b7585cc6973a", "note": "canonical/clean fresh account from Prompt 2"},
+    {"dataset": "scanwick_bank_savings_clean.csv", "account_id": "49cfae02-da8e-44c6-a1a6-93a2433a6cf3", "note": "known to have 100% of debits flagged is_own_account_transfer=True per Prompt 3 (issue B3-1)"},
+    {"dataset": "scanwick_bank_wallet_clean.csv", "account_id": "b70312cb-343a-43f4-be5b-1bf96ad51baa", "note": "known to have balance-integrity failure per Prompt 2 (issue B2-3)"}
+  ],
+  "response_schema_valid": true,
+  "response_envelope_valid": true,
+  "calculations_verified": [
+    {
+      "diagnostic": "income-stability",
+      "account": "primary (a8b7128c)",
+      "recomputed": {"cv_pct": 18.2, "label": "stable"},
+      "endpoint_returned": {"cv_pct": 18.2, "label": "stable", "score": 82},
+      "match": true
+    },
+    {
+      "diagnostic": "income-stability",
+      "account": "savings (49cfae02)",
+      "recomputed": {"cv_pct": 134.7, "label": "volatile"},
+      "endpoint_returned": {"cv_pct": 134.7, "label": "volatile", "score": 0},
+      "match": true
+    },
+    {
+      "diagnostic": "income-stability",
+      "account": "wallet (b70312cb)",
+      "recomputed": {"cv_pct": 105.0, "label": "volatile"},
+      "endpoint_returned": {"cv_pct": 105.0, "label": "volatile", "score": 0},
+      "match": true
+    },
+    {
+      "diagnostic": "abm",
+      "account": "primary (a8b7128c)",
+      "recomputed": {"abm_3m": "-5976353.5503", "abm_6m": "-5085398.1780", "abm_12m": "-2915069.2412"},
+      "endpoint_returned": {"abm_3m": -5976353.550273973, "abm_6m": -5085398.178041958, "abm_12m": -2915069.2412043796, "trend": "improving"},
+      "match": true,
+      "note": "Values match exactly. trend='improving' is flagged as a defect -- see issues_found; the recent 3-month average balance is MORE negative than the 12-month average, i.e. genuinely worsening, not improving."
+    },
+    {
+      "diagnostic": "abm",
+      "account": "savings (49cfae02)",
+      "recomputed": {"abm_3m": "2767.0522", "abm_6m": "3008.4064", "abm_12m": "7534.3725"},
+      "endpoint_returned": {"abm_3m": 2767.052222222222, "abm_6m": 3008.4064444444443, "abm_12m": 7534.3725252525255, "trend": "declining"},
+      "match": true
+    },
+    {
+      "diagnostic": "abm",
+      "account": "wallet (b70312cb)",
+      "recomputed": {"abm_3m": "1808.3782", "abm_6m": "2694.5373", "abm_12m": "7649.1047"},
+      "endpoint_returned": {"abm_3m": 1808.378205128205, "abm_6m": 2694.5372670807456, "abm_12m": 7649.104702194358, "trend": "declining"},
+      "match": true
+    },
+    {
+      "diagnostic": "cashflow-analysis (recurring_total + variable_total cross-check against independently recomputed total_outflow)",
+      "account": "primary (a8b7128c)",
+      "recomputed": {"total_outflow": "37248435.6300"},
+      "endpoint_returned": {"recurring_total": 10505072.78, "variable_total": 26743362.85, "sum": 37248435.63},
+      "match": true
+    },
+    {
+      "diagnostic": "cashflow-analysis (same cross-check)",
+      "account": "wallet (b70312cb)",
+      "recomputed": {"total_outflow": "63127382.9400"},
+      "endpoint_returned": {"recurring_total": 1125214.72, "variable_total": 62002168.22, "sum": 63127382.94},
+      "match": true
+    },
+    {
+      "diagnostic": "cashflow-analysis (same cross-check)",
+      "account": "savings (49cfae02)",
+      "recomputed": {"total_outflow": "0"},
+      "endpoint_returned": {"recurring_total": 0, "variable_total": 0, "cash_buffer_months": null, "expense_concentration_ratio_pct": null},
+      "match": true,
+      "note": "Correctly consistent with an outflow total of 0 -- but that 0 itself is wrong data caused by issue B3-1 (Prompt 3), not a new bug in this endpoint."
+    },
+    {
+      "diagnostic": "revenue-patterns (seasonality_confidence threshold)",
+      "account": "primary (a8b7128c)",
+      "recomputed": "months_available=12 -> confidence should be 'low' (threshold is 24)",
+      "endpoint_returned": {"months_available": 12, "seasonality_confidence": "low"},
+      "match": true
+    },
+    {
+      "diagnostic": "revenue-patterns (seasonality_confidence threshold)",
+      "account": "savings (49cfae02)",
+      "recomputed": "months_available=25 -> confidence should be 'high'",
+      "endpoint_returned": {"months_available": 25, "seasonality_confidence": "high"},
+      "match": true
+    },
+    {
+      "diagnostic": "revenue-patterns (seasonality_confidence threshold)",
+      "account": "wallet (b70312cb)",
+      "recomputed": "months_available=37 -> confidence should be 'high'",
+      "endpoint_returned": {"months_available": 37, "seasonality_confidence": "high"},
+      "match": true
+    }
+  ],
+  "edge_case_results": [
+    {
+      "diagnostic": "income-stability",
+      "input": "empty transaction list (in-memory call, no DB writes)",
+      "result": "Gracefully disabled: disabled_features=[{feature_name:'income_stability', reason:'Fewer than 3 months of transaction data are available.'}]",
+      "graceful": true
+    },
+    {
+      "diagnostic": "abm",
+      "input": "empty transaction list (in-memory call, no DB writes)",
+      "result": "Gracefully disabled: disabled_features=[{feature_name:'abm', reason:'Not enough daily closing balance data...'}]",
+      "graceful": true
+    },
+    {
+      "diagnostic": "cashflow-analysis",
+      "input": "empty transaction list (in-memory call, no DB writes)",
+      "result": "No crash; returns null/empty structure (cash_buffer_months:null, by_payment_mode:[], business_vs_personal:[]) -- but does NOT populate meta.disabled_features (route never passes it for this endpoint), unlike income-stability/abm.",
+      "graceful": true
+    },
+    {
+      "diagnostic": "customer-segmentation",
+      "input": "empty transaction list (in-memory call, no DB writes)",
+      "result": "No crash; returns empty segments + null medians. Same disabled_features gap as cashflow-analysis.",
+      "graceful": true
+    },
+    {
+      "diagnostic": "revenue-patterns",
+      "input": "empty transaction list (in-memory call, no DB writes)",
+      "result": "No crash; returns nulls/empty list, seasonality_confidence defaults to 'low', months_available=0. Same disabled_features gap.",
+      "graceful": true
+    }
+  ],
+  "previous_issue_impact": [
+    {
+      "prior_issue": "B3-1 (is_own_account_transfer contamination, savings account 100% of debits wrongly flagged)",
+      "diagnostics_affected": ["cashflow-analysis", "customer-segmentation"],
+      "observed_effect": "cashflow-analysis for the savings account returns cash_buffer_months=null, expense_concentration_ratio_pct=null, recurring/variable totals both 0 -- confirmed to trace directly to the same upstream flag contamination, not a new defect. customer-segmentation for the savings account only shows 2 counterparties total (both credit-side), since every debit-side counterparty was filtered out by the same contamination.",
+      "new_behavior_observed": false
+    },
+    {
+      "prior_issue": "B2-3 (balance-integrity failure, wallet account discrepancy 800,624.14)",
+      "diagnostics_affected": ["abm", "cashflow-analysis"],
+      "observed_effect": "Neither endpoint surfaces the integrity failure itself; both operate on daily closing balances (balance_after values) directly, which are internally consistent day-to-day even though they don't reconcile against the transaction-derived total. No incorrect output observed as a direct result -- ABM/cashflow numbers for this account are plausible and match independent recomputation exactly.",
+      "new_behavior_observed": false
+    },
+    {
+      "prior_issue": "Duplicate ingestion (B2-2) / account_number_hash fallback (B2-4)",
+      "diagnostics_affected": [],
+      "observed_effect": "Not tested against a duplicate account in this prompt (only canonical accounts were used, per this prompt's own instruction to test canonical accounts and document duplicate-related effects only where observed). No new diagnostic-specific effect observed beyond what Prompt 3 already documented for the dashboard endpoint.",
+      "new_behavior_observed": false
+    }
+  ],
+  "mismatches": [],
+  "issues_found": [
+    "NEW (Prompt 4): ABM's trend label ('improving'/'declining') uses pct_change = (abm_3m - abm_12m) / abm_12m * 100, which produces an incorrect sign when abm_12m is negative. For the primary account (a real overdrawn account, abm_12m=-2,915,069.24, abm_3m=-5,976,353.55 -- i.e. the account's average balance got MORE negative/worse in the recent window), the endpoint returns trend='improving', which is the opposite of what actually happened. Confirmed via independent recomputation that the underlying abm_3m/abm_6m/abm_12m values themselves are correct -- only the derived trend label is wrong, and only for negative-baseline accounts."
+  ],
+  "status": "pass_with_issues",
+  "summary": "All 5 diagnostic endpoints are implemented, correctly authenticated/RBAC-gated, and return the shared envelope shape. Every recomputable metric matches independent SQL/pandas recomputation exactly across all 3 canonical accounts -- 11 direct value comparisons, 0 mismatches. Edge-case (insufficient-data) behavior is graceful for all 5, though income-stability/abm use the proper disabled_features mechanism while cashflow-analysis/customer-segmentation/revenue-patterns silently return null/empty structures instead (inconsistent but not broken). One new defect found: ABM's trend label is sign-incorrect for accounts with a negative 12-month average balance, labeling a genuinely worsening trend as 'improving'. Confirmed the known transfer-flag contamination (B3-1) propagates into cashflow-analysis and customer-segmentation for the savings account, as expected -- not a new issue, just confirmed inherited impact.",
+  "can_proceed_to_prompt_5": true
+}

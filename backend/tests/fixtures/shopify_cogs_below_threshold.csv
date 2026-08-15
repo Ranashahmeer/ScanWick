@@ -1,0 +1,11 @@
+Name,Email,Financial Status,Fulfillment Status,Currency,Total,Discount Amount,Refunded Amount,Shipping,Created at,Lineitem sku,Lineitem quantity,Lineitem price,Lineitem cogs,Source Name
+#2001,a@example.com,paid,fulfilled,NGN,1000.00,0.00,0.00,50.00,2026-02-01 10:00:00 +0100,SKU-A,1,1000.00,400.00,web
+#2002,b@example.com,paid,fulfilled,NGN,1000.00,0.00,0.00,50.00,2026-02-02 10:00:00 +0100,SKU-B,1,1000.00,400.00,web
+#2003,c@example.com,paid,fulfilled,NGN,1000.00,0.00,0.00,50.00,2026-02-03 10:00:00 +0100,SKU-C,1,1000.00,400.00,web
+#2004,d@example.com,paid,fulfilled,NGN,1000.00,0.00,0.00,50.00,2026-02-04 10:00:00 +0100,SKU-D,1,1000.00,400.00,web
+#2005,e@example.com,paid,fulfilled,NGN,1000.00,0.00,0.00,50.00,2026-02-05 10:00:00 +0100,SKU-E,1,1000.00,400.00,web
+#2006,f@example.com,paid,fulfilled,NGN,1000.00,0.00,0.00,50.00,2026-02-06 10:00:00 +0100,SKU-F,1,1000.00,400.00,web
+#2007,g@example.com,paid,fulfilled,NGN,1000.00,0.00,0.00,50.00,2026-02-07 10:00:00 +0100,SKU-G,1,1000.00,400.00,web
+#2008,h@example.com,paid,fulfilled,NGN,1000.00,0.00,0.00,50.00,2026-02-08 10:00:00 +0100,SKU-H,1,1000.00,400.00,web
+#2009,i@example.com,paid,fulfilled,NGN,1000.00,0.00,0.00,50.00,2026-02-09 10:00:00 +0100,SKU-I,1,1000.00,400.00,web
+#2010,j@example.com,paid,fulfilled,NGN,1000.00,0.00,0.00,50.00,2026-02-10 10:00:00 +0100,SKU-J,1,1000.00,,web

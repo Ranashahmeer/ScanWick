@@ -1,0 +1,35 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 6,
+  "prompt_name": "AI Layer Testing",
+  "dataset_name": "Olist multi-table set (via ecommerce_olist_adapter.py)",
+  "merchant_id_tested": "33333333-3333-3333-3333-333333333333",
+  "testing_method_note": "A bounded, independent 150-second external-process-timeout attempt at the real GET /api/v1/ecommerce/ai/playbook endpoint for this merchant did NOT complete (consistent with Prompt 5/E5-2's finding that this merchant's embedded inventory_forecast call takes 10+ minutes). Fell back to a direct, transparently-labeled generate_recommendations() call using freshly-computed REAL profit_leaks/dead_stock context (both fast, no per-SKU model fitting) and an honestly-flagged placeholder for inventory_forecast (empty forecasts list, explicitly NOT claimed to be the real result).",
+  "real_context_used": {
+    "profit_leaks_disabled": true,
+    "profit_leaks_coverage": {"total_line_items": 112650, "missing_count": 112650, "missing_pct": 100.0, "disabled": true},
+    "dead_stock_count": 32951,
+    "dead_stock_total_capital_at_risk": "0",
+    "inventory_forecast": "PLACEHOLDER ONLY -- not the real computed result, per E5-2. Empty forecasts list used."
+  },
+  "ai_call_result": {
+    "attempt_1": "FAILED -- Gemini API client error: 429 Too Many Requests (real, reproduced error from the live Gemini API during this testing session).",
+    "attempt_2": "FAILED again -- same 429 error, reproduced a second time moments later.",
+    "recommendations_returned": [],
+    "endpoint_level_degradation": "Confirmed graceful -- generate_recommendations caught the GeminiAPIError internally and returned [], meaning the real endpoint would still respond success:true, data:{recommendations:[]} rather than crashing or returning a 500. No crash observed at any level."
+  },
+  "new_issue_found": {
+    "E6-3": "A real Gemini 429 rate-limit error was encountered and is NOT retried at all -- confirmed via ai_client.py's status-code-based classification (all 4xx, including 429, treated as non-retryable 'client errors'). 429 specifically is a transient condition where a retry-with-backoff would likely succeed, unlike genuine 400/401/403/404 errors. Medium severity -- a real, reproduced reliability gap in the shared ai_client.py module (relevant beyond Ecommerce), first observed during this testing session. Confirmed the failure degrades gracefully (no crash), which is a positive finding."
+  },
+  "grounding_and_schema_verification": "NOT POSSIBLE for this merchant -- no real AI-generated text was ever produced (both attempts failed with 429 before Gemini returned any content). Explicitly reported as Not Observed rather than assumed. profit_leaks correctly showed disabled=true (100% COGS missing, matching Prompt 4 exactly) and would have resulted in profit_leaks:None in the context (same pattern as Bank's disabled-feature handling) had the call succeeded.",
+  "e4_3_propagation_check": "E4-3 (dead-stock's total_capital_at_risk=0 despite 32,951 dead SKUs) could NOT be evaluated against real AI narrative text for this merchant, since no AI text was ever generated due to the 429 failures. Explicitly Not Observed.",
+  "issue_propagation_summary": {
+    "propagates": ["E5-2 (reconfirmed to block full real-endpoint AI testing for this merchant, via an independent 150s bounded attempt in this prompt)"],
+    "does_not_apply": ["E1-3", "E1-4/E1-5 (10k-file-specific)", "E2-1 (no ad-kill-switch context in AI playbook)", "E2-2 (not part of duplicate test)", "E2-3", "E2-4/E3-1", "E3-2", "E3-3", "E4-1", "E4-2 (profit_leaks disabled before any leak_breakdown data was ever computed for this merchant)"],
+    "not_observed": ["E4-3 (dead-stock AI narrative impact -- no AI text was ever generated for this merchant)"],
+    "new_issues_this_prompt": ["E6-3"]
+  },
+  "status": "pass_with_issues",
+  "summary": "Full real-endpoint AI-layer testing for this merchant was not achievable within a practical QA timeframe, consistent with and reconfirming E5-2. A direct, real Gemini API call using genuine profit_leaks/dead_stock context failed twice with a real 429 rate-limit error -- a new reliability finding (E6-3) -- but confirmed the failure degrades gracefully with no crash. No AI narrative text was produced for this merchant, so grounding/hallucination verification could not be completed and is explicitly reported as Not Observed rather than assumed.",
+  "can_proceed_to_prompt_7": true
+}

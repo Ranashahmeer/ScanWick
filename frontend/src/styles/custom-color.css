@@ -1,0 +1,9 @@
+@import "tailwindcss";
+@theme {
+  --color-neutral: #dce3df;
+  --color-primary-purple: #00361c;
+  --color-hover-purple: #f1f8f4;
+  --color-primary-purple-dark: #00220f;
+  --color-primary-text-dark: #1b7a4b;
+  --color-input-bg: #f7f9f8;
+}

@@ -1,0 +1,4 @@
+order_id,order_date,status,order_currency,order_total,cart_discount,refunded_total,order_shipping,payment_method,item_sku,item_quantity,item_cost
+5001,2026-01-15 10:00:00,wc-completed,NGN,2300.81,0.00,0.00,150.00,bacs,SKU-0042,2,1075.40
+5002,2026-01-16 11:30:00,wc-processing,NGN,4200.00,200.00,0.00,150.00,cod,SKU-0015,1,4200.00
+5003,2026-01-17 09:15:00,wc-refunded,NGN,1500.00,0.00,1500.00,0.00,bacs,SKU-0091,3,500.00

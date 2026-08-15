@@ -1,0 +1,50 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 1,
+  "prompt_name": "Dataset Inspection + Schema Mapping",
+  "dataset_name": "scanwick_bank_savings_clean.csv",
+  "dataset_path": "backend/datasets/bank dataset/scanwick_bank_savings_clean.csv",
+  "status": "pass_with_issues",
+  "summary": "Ingests cleanly (0 rejected rows, 0 zero-amount rows post-fix, confirmed via direct function execution), but ~15.7% of rows are missing balance (including the first row), which reduces the precision of the balance-integrity check versus dataset_01/03. Three real, clean columns (value_date, channel, transaction_reference) are not currently captured by ingestion at all.",
+  "key_findings": [
+    "8 source columns present: trans_date, value_date, description, debit, credit, balance, channel, transaction_reference.",
+    "balance is null for 263 of 1,670 rows (~15.7%), including the very first row in the file.",
+    "derive_balance_integrity_inputs_from_rows() uses the first row that has a balance value (not literally row 0), so this does not crash, but the derived opening_balance will not be the statement's true starting balance for this file (medium severity).",
+    "value_date, channel, and transaction_reference are real, well-formed columns that extract_canonical_bank_rows() does not currently read at all (low severity, not a blocker).",
+    "channel has only one distinct value ('Mobile') in this file, so it is not useful on its own for later payment-mode/channel-diversity diagnostics.",
+    "No ambiguous rows where both debit and credit are populated (0 found).",
+    "No duplicate column headers; no duplicate transaction_reference values (0 of 1,670).",
+    "No encoding issues found in narration text.",
+    "Credit-column keyword-collision bug (fixed prior to this run) confirmed resolved for this file: 0 zero-amount rows now vs. 737 before the fix."
+  ],
+  "metrics": {
+    "row_count": 1670,
+    "column_count": 8,
+    "source_columns": ["trans_date", "value_date", "description", "debit", "credit", "balance", "channel", "transaction_reference"],
+    "date_range": { "start": "2023-09-17", "end": "2026-03-27" },
+    "unparseable_dates": 0,
+    "debit_null_count": 737,
+    "credit_null_count": 933,
+    "balance_null_count": 263,
+    "balance_null_pct": 15.7,
+    "balance_null_at_first_row": true,
+    "rejected_rows": 0,
+    "zero_amount_rows_after_fix": 0,
+    "zero_amount_rows_before_fix": 737,
+    "ambiguous_debit_credit_rows": 0,
+    "duplicate_headers": false,
+    "duplicate_transaction_reference_count": 0,
+    "encoding_issues": false,
+    "has_currency_column": false,
+    "has_account_number_column": false,
+    "has_value_date_column": true,
+    "has_channel_column": true,
+    "has_transaction_reference_column": true,
+    "channel_distinct_values": 1
+  },
+  "artifacts": [
+    "01_dataset_inspection.md",
+    "result_note.md"
+  ],
+  "verdict": "PASS WITH ISSUES. Bank Test Prompt 2 (Ingestion) can proceed, with these follow-ups added to its scope: specifically check what Account.opening_balance/balance_integrity_passed come out to for this file given the first-row null-balance situation; note (not a blocker) that value_date, channel, and transaction_reference will not appear anywhere in the ingested data for this file."
+}

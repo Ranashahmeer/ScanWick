@@ -1,0 +1,98 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 2,
+  "prompt_name": "Ingestion Testing",
+  "dataset_name": "scanwick_test_ecommerce_orders.csv",
+  "dataset_path": "backend/datasets/Ecommerce Order Dataset/scanwick_test_ecommerce_orders.csv",
+  "ingestion_source": "generic_csv (OrderDataSource.generic_csv)",
+  "merchant_id_used": "11111111-1111-1111-1111-111111111111",
+  "merchant_id_note": "Reused the existing established test merchant (already has an ecommerce RBAC role row from earlier session work: user_id=1, vertical=ecommerce, role=owner) so future prompts needing authenticated endpoint access don't require additional scaffolding.",
+  "run_mode": "non_isolated",
+  "invocation_method": "Direct function calls (extract_canonical_rows/write_canonical_rows/compute_ecommerce_quality_report from app/services/ecommerce_ingestion.py), per Prompt 1's confirmed finding (E1-1) that no HTTP route or Celery dispatch exists to trigger Ecommerce ingestion any other way. Additionally, a supplementary run of the FULL ingest_ecommerce_csv Celery-task wrapper (staged file + Upload-row write) was performed under a 4th, separate merchant_id purely to verify the Upload-row/warnings-persistence logic not exercised by the direct-function calls -- see wrapper_verification below.",
+  "db_state_before_this_dataset": "0 orders/order_items for this specific merchant_id (fresh merchant). Pre-existing, unrelated orphaned Ecommerce data from earlier session work was already present in app.db under 2 other merchant_ids (200 orders/0 items under merchant 2fcd21e2648a49e1b9df786df7209dbd; 982 orders/982 items under merchant dfa12605cd4040fba8a71f6bfce298a7) -- confirmed present before this prompt's own ingestion began, left untouched, does not overlap or interfere with this merchant_id.",
+  "first_ingestion": {
+    "input_rows": 982,
+    "orders_created": 982,
+    "items_created": 982,
+    "rows_rejected": 0,
+    "skip_reasons": [],
+    "return_cost_defaulted_count": 982,
+    "quality_report": {
+      "rows_parsed": 982,
+      "rows_rejected": 0,
+      "date_range_start": "2025-07-01",
+      "date_range_end": "2026-05-26",
+      "days_of_history": 330,
+      "warnings": []
+    },
+    "note": "Ran BEFORE any MerchantSettings row existed for this merchant -- return_cost_defaulted_count=982 (100%) confirms the Zero tier of resolve_unit_return_cost fired for every row, since this file has no unit_return_cost source column (confirmed absent in Prompt 1) and no merchant default was configured yet."
+  },
+  "merchant_settings_configuration": {
+    "action": "Inserted ONE real MerchantSettings row for this merchant_id: base_currency='NGN' (matching this file's own currency, so no FX rate needed to be fabricated), default_return_cost=500.0000.",
+    "justification": "A legitimate, one-time merchant business-configuration action (analogous to Bank QA's real ContextualMarker/RBAC-row insertions) -- not fabricated transaction/observational data. Chosen specifically to exercise the Merchant-Default tier of the return-cost fallback chain with real code behavior, per this prompt's explicit instruction to verify the full 3-tier chain wherever real data permits."
+  },
+  "second_ingestion_duplicate_and_merchant_default_test": {
+    "input_rows": 982,
+    "orders_created": 982,
+    "items_created": 982,
+    "rows_rejected": 0,
+    "return_cost_defaulted_count": 0,
+    "quality_report": {
+      "rows_parsed": 982,
+      "rows_rejected": 0,
+      "date_range_start": "2025-07-01",
+      "date_range_end": "2026-05-26",
+      "days_of_history": 330,
+      "warnings": []
+    },
+    "duplicate_ingestion_finding": "Re-ingesting the identical file under the SAME merchant_id created a full second set of 982 Order + 982 OrderItem rows -- zero deduplication, zero rejection. Total after both ingestions: 1,964 orders, 1,964 order_items for this merchant. NEW issue: E2-2 (no duplicate-ingestion protection exists for Ecommerce, confirmed empirically). Not a rediscovery of any Prompt 1 finding -- Prompt 1 did not test ingestion behavior.",
+    "merchant_default_tier_finding": "return_cost_defaulted_count dropped from 982 (100%) to 0 (0%) -- confirms the Merchant Default tier of resolve_unit_return_cost correctly fired for all 982 re-ingested rows once MerchantSettings.default_return_cost=500 existed. See testing/ecommerce/QA_ISSUES.md's return-cost-fallback-chain entry for full verification detail."
+  },
+  "wrapper_verification": {
+    "purpose": "Verify the Upload-row-write and return_cost-warning-append logic inside _ingest_ecommerce_csv_async/ingest_ecommerce_csv (the full Celery task), which the direct-function-call approach above does not exercise.",
+    "method": "Staged the real, unmodified CSV file at the exact path resolve_upload_file_path expects, under a 4th, separate merchant_id, then called ingest_ecommerce_csv(upload_id, merchant_id, source='generic_csv') directly (not via .delay(), consistent with E1-1's finding that no dispatch path exists).",
+    "result": {
+      "orders_created": 982,
+      "items_created": 982,
+      "rows_rejected": 0,
+      "return_cost_defaulted_count": 982,
+      "quality_report_warnings": [
+        {
+          "field": "return_cost",
+          "severity": "medium",
+          "message": "Return cost is missing for 982 of 982 line items (no SKU-level override and no merchant default set). Defaulting to 0 for those — net margin may be overstated.",
+          "features_disabled": []
+        }
+      ]
+    },
+    "upload_row_confirmed": "Verified via direct SQL: uploads row exists with status='ready', rows_parsed=982, rows_rejected=0, warnings column contains the exact JSON warning shown above. Upload-row and warnings-persistence logic confirmed fully functional."
+  },
+  "canonical_mapping_verification": {
+    "external_order_id": "Direct mapping from order_id, confirmed correct for the sample row checked (external_order_id='100001').",
+    "order_date": "Direct mapping, parsed correctly, 0 unparseable dates (consistent with Prompt 1's 0-unparseable finding).",
+    "gross_revenue": "Direct mapping from the file's own gross_revenue column, confirmed correct (e.g. order 100001: 20000.0000, matching source file exactly).",
+    "sku_handling": "sku populated for all 982 rows (both ingestions) -- OrderItem created for every order, confirmed via count match (982 orders == 982 items, both passes).",
+    "quantity": "Correctly cast to int, confirmed via sample (quantity=1 for order 100001; distinct quantities of 1/2/3 observed across the file).",
+    "currency": "original_currency='NGN' for all 982 rows (both passes) -- matches the file's single real currency value. exchange_rate_at_order=1.000000 for all rows (same-currency shortcut in get_historical_rate -- effective_base_currency resolved to 'NGN' in both passes: absent-MerchantSettings fallback to original_currency for pass 1, and the explicitly-configured base_currency='NGN' for pass 2). Real cross-currency conversion (differing currencies + a historical FX-rate DB lookup) was NOT exercised by this dataset -- consistent with Bank QA's equivalent finding for its own datasets.",
+    "cogs": "unit_cogs populated for all 982 rows both passes (0% missing, matching Prompt 1's finding); Order.cogs correctly derived as unit_cogs*quantity (e.g. order 100001: unit_cogs=16800, quantity=1, Order.cogs=16800.0000).",
+    "customer_id": "Correctly derived via resolve_customer_id(customer_email) -- deterministic uuid5, confirmed identical across both ingestion passes for the same order_id/email (order 100001: customer_id=7846a07a-b969-5bca-b863-2d72641487c5 in both copies)."
+  },
+  "net_margin_verification": {
+    "methodology": "Independently recomputed net_margin for all 1,964 real ingested orders (982 from the return_cost=0 pass, 982 from the return_cost=500×quantity pass), using two formulas: (A) the ACTUAL call-site formula = gross_revenue - refund_amount - discount_amount - cogs - shipping_cost - return_cost; (B) the FULL documented spec formula = (A) - processing_fees - allocated_ad_spend.",
+    "result_vs_actual_call_site_formula": "0 of 1,964 orders mismatch (exact match in every case, to the cent) -- confirms the code computes exactly what it claims to compute, with return_cost correctly scaled by quantity in both passes.",
+    "result_vs_full_spec_formula": "1,964 of 1,964 orders mismatch -- every single order's stored net_margin is missing the processing_fees/allocated_ad_spend subtraction. Sample: order 100001, stored net_margin=2000.00 (pass 1) / 1500.00 (pass 2); full-formula recompute = 904.00 (pass 1) / 404.00 (pass 2) -- a constant 1,096.00 (=360.00 processing_fees + 736.00 allocated_ad_spend) difference in both cases.",
+    "conclusion": "NEW issue E2-1 (High severity) -- net_margin systematically overstates profitability by omitting 2 real, populated cost fields at the write_canonical_rows call site (not a limitation of compute_net_margin itself, which fully supports both parameters). See testing/ecommerce/QA_ISSUES.md for full detail."
+  },
+  "returns_verification": {
+    "finding": "Returns are NOT implemented in the ingestion pipeline. Proven via: (1) grep across app/services/ecommerce_ingestion.py and app/services/ecommerce_olist_adapter.py -- zero Return(...) constructions, zero imports of the Return model; (2) direct DB query -- the returns table has 0 rows after this and all other Prompt 2 ingestions (125,796 total orders ingested across all 3 datasets); (3) this file itself has real, well-formed return-related columns (returns_amount, refund_amount, return_carrier, return_reason) that COULD have populated a Return row per order, but return_carrier/return_reason were already classified 'Ignored' in Prompt 1's field mapping (not re-discovered here) precisely because no write path reads them.",
+    "downstream_consequence": "app/services/ecommerce_returns.py (backing the return-forensics diagnostic) reads FROM the returns table via a real Order-joined query -- this diagnostic is therefore guaranteed to return an empty result for every merchant tested, not due to any dataset limitation but due to this confirmed, systemic ingestion gap. Logged as NEW issue E2-3 (High), to be carried forward into Prompt 4 rather than rediscovered there.",
+    "conclusion": "Returns are confirmed Not Implemented at the ingestion layer, proven by repository evidence, not assumed."
+  },
+  "database_integrity": {
+    "orphan_order_items_check": "Confirmed via schema (order_items.order_id has a FK to orders.id) and via the 1:1 orders-to-items count match for this merchant (1,964 orders, 1,964 items, both created in matched pairs within the same write_canonical_rows call) -- no orphan risk observed.",
+    "is_anomalous_flagging": "0 orders flagged is_anomalous=True for this merchant -- correct, since no ContextualMarker was created for the ecommerce analyzer type for any merchant in this pass (the one existing contextual_markers row in app.db is Bank-specific, confirmed via direct query, no cross-vertical contamination)."
+  },
+  "status": "pass_with_issues",
+  "summary": "982/982 rows ingested cleanly on both passes (0 rejected), full canonical mapping confirmed correct (SKU, currency, COGS, customer identity), and the return-cost 3-tier fallback chain's Zero and Merchant-Default tiers both verified correct with precise, real evidence. However, this prompt's independent net_margin recomputation uncovered a new, high-severity, 100%-reproducible defect (E2-1: processing_fees/allocated_ad_spend omitted from every margin calculation), confirmed zero duplicate-ingestion protection exists (E2-2), and confirmed the returns table is never populated by any ingestion path, meaning the return-forensics diagnostic cannot currently produce real output for any dataset (E2-3).",
+  "can_proceed_to_prompt_3": true
+}

@@ -1,0 +1,31 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 5,
+  "prompt_name": "Predictive Model Testing",
+  "dataset_name": "ecommerce_orders_10k_updated.csv",
+  "merchant_id_tested": "22222222-2222-2222-2222-222222222222",
+  "response_envelope_verification": {"all_endpoints": "Confirmed exact {success, data, meta:{...}} shape.", "schema_compliant": true},
+  "inventory_forecast_verification": {
+    "endpoint_returned": {"forecasts": [], "skus_excluded_insufficient_history": []},
+    "finding": "Trivially empty and correct: this merchant has 0 order_items (confirmed since Prompt 2 -- no sku column in this file), so there is nothing for Holt-Winters to iterate over. Not a defect, and not the same E3-1/E2-4 'not disabled' ambiguity, since inventory-forecast has no disabled_features/coverage-gate concept at all -- an empty forecasts list for 0 SKUs is an honest, unambiguous result."
+  },
+  "rfm_segments_verification": {
+    "endpoint_returned": {"clusters_produced": 0, "unidentified_order_count": 10000, "all_segments_empty": true},
+    "finding": "Correct: this merchant's orders all have customer_id=None (no customer_email column, confirmed since Prompt 1/2), so by_customer is empty and the function correctly short-circuits before any clustering attempt."
+  },
+  "churn_risk_verification": {
+    "endpoint_returned": {"insufficient_data": true, "unidentified_order_count": 10000, "high_risk_customers": []},
+    "finding": "Correct: same root cause as RFM -- 0 identified customers means 0 observed events, correctly triggering the 'insufficient_data' path rather than crashing or fabricating a survival curve from no data."
+  },
+  "ad_kill_switch_verification": {
+    "note": "Not separately tested for this merchant -- Ad Kill Switch's decision logic depends on Order.channel/allocated_ad_spend/net_margin, none of which are populated for this merchant in a meaningfully testable way beyond what was already verified structurally for the primary merchant. No MerchantSettings/ad_kill_mode was configured for this merchant in this prompt."
+  },
+  "issue_propagation_summary": {
+    "propagates": [],
+    "does_not_apply": ["E1-3", "E1-4 (double-gapped -- see QA_ISSUES.md for the precise reasoning: gross_revenue mis-mapping is moot since customer_id is always None for this merchant anyway)", "E1-5", "E2-1", "E2-2 (this merchant was not part of the duplicate-ingestion test)", "E2-3", "E2-4/E3-1", "E3-2", "E4-1", "E4-2", "E4-3"],
+    "new_issues_this_prompt": []
+  },
+  "status": "pass_with_issues",
+  "summary": "All 3 GET predictive endpoints return correct, schema-compliant, honest empty results for this merchant, exactly matching its known 0-order_items/0-identified-customers state. No new defects found for this dataset; no previously-known issues propagate into its predictive results, since the merchant's own structural gaps (no SKU, no customer identity) make it unaffected by them independently.",
+  "can_proceed_to_prompt_6": true
+}

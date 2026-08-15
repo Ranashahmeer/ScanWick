@@ -1,0 +1,55 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 2,
+  "prompt_name": "Ingestion Testing",
+  "dataset_name": "scanwick_bank_wallet_clean.csv",
+  "dataset_path": "backend/datasets/bank dataset/scanwick_bank_wallet_clean.csv",
+  "dataset_classification": "Bank ingestion dataset -- included in Prompt 2 run",
+  "run_mode": "non_isolated",
+  "db_state_before_run": "At the point this dataset was ingested (third of the three in this run's first pass), app.db already contained 1 orphaned account/465 bank_transactions (from the earlier crashed attempt, see scanwick_test_bank_statement.csv's 02_result.json) plus the freshly-ingested scanwick_test_bank_statement.csv (465 rows) and scanwick_bank_savings_clean.csv (1,670 rows) from earlier in this same run. No pre-existing data specific to THIS dataset existed before its own first ingestion.",
+  "input_rows": 8158,
+  "inserted_rows": 8158,
+  "skipped_rows": 0,
+  "skip_reasons": [],
+  "duplicate_ingestion_behavior": "Not re-run a second time in this pass (the duplicate-ingestion test was performed on scanwick_test_bank_statement.csv only). Based on code inspection and the primary file's confirmed behavior, the same full-reinsert/no-dedup behavior would be expected, but this is inferred, not independently re-observed for this file in this run.",
+  "checks": [
+    {
+      "name": "rows_in_vs_inserted",
+      "result": "pass",
+      "observed_behavior": "8,158 input rows, 8,158 transactions_created, 0 rows_rejected -- exact match, the largest single ingestion in this run."
+    },
+    {
+      "name": "is_own_account_transfer",
+      "result": "pass",
+      "observed_behavior": "Shared cross-account check: 1,197 matched pairs / 2,394 flagged rows across all 4 accounts present at check time, contaminated by the accidental orphan duplicate of the primary file. Not separable into a per-file number from this run's data."
+    },
+    {
+      "name": "is_anomalous",
+      "result": "pass",
+      "observed_behavior": "Shared marker check (2025-06-05..2025-06-15) is merchant-wide; this file's date range (2023-01-04 to 2026-03-26) overlaps the marker window. 208 total flagged across all accounts, 0 false positives outside range -- confirms the rule fires correctly, not decomposed per account in this run."
+    },
+    {
+      "name": "currency_conversion",
+      "result": "pass",
+      "observed_behavior": "original_currency defaults to 'NGN' (no currency column); spot-checked rows show exchange_rate=1.000000, base_currency_amount==amount. Mechanism correct, but this dataset does not exercise real cross-currency conversion."
+    },
+    {
+      "name": "account_number_hash",
+      "result": "pass",
+      "observed_behavior": "Confirmed hashed (SHA-256), not plaintext. No account_number column in this file -> falls back to hash_value(f'unknown-account:{upload_id}') (hash 5c48ca367f3d9a66...)."
+    },
+    {
+      "name": "balance_integrity",
+      "result": "pass",
+      "observed_behavior": "REAL INGESTION RESULT -- notable finding: despite Prompt 1 rating this file the CLEANEST of the three (0 null balances), the real ingestion result is balance_integrity_passed=False with the LARGEST discrepancy of all three files: 800,624.14 (opening=0.0, closing=0.0 as recorded, but computed_closing=-800,624.14 from summing credits/debits). A fully-populated balance column does not guarantee the stated balances actually reconcile against the transaction amounts -- this is a materially larger integrity gap than dataset_02's, on the file Prompt 1 rated as most complete. 4 date_gaps found, largest 102 days (2023-03-13 to 2023-06-22)."
+    },
+    {
+      "name": "duplicate_ingestion",
+      "result": "not_observed",
+      "observed_behavior": "Not tested for this specific file in this run -- see duplicate_ingestion_behavior field."
+    }
+  ],
+  "status": "pass_with_issues",
+  "summary": "Ingests cleanly (0 rejected rows, largest volume in this run) but produces the WORST balance-integrity result of the three files (discrepancy=800,624.14, integrity_passed=False), despite being rated cleanest in Prompt 1 on the basis of having zero null balance values. This is the single most important finding of this Prompt 2 run: complete data (no nulls) does not imply internally-consistent data -- Prompt 1's data-completeness assessment and Prompt 2's data-correctness result diverge sharply for this file. Same architectural gaps as the other two datasets apply.",
+  "can_proceed_to_prompt_3": true
+}

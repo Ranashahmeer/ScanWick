@@ -1,0 +1,46 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 3,
+  "prompt_name": "Dashboard Endpoint Testing",
+  "dataset_name": "ecommerce_orders_10k_updated.csv",
+  "merchant_id_tested": "22222222-2222-2222-2222-222222222222",
+  "rbac_setup": "Inserted one new, ORM-consistent UserMerchantRole row for this merchant (no pre-existing row of any kind existed for this merchant_id, unlike the primary merchant's E3-3 situation).",
+  "response_envelope_verification": {"all_3_endpoints": "Confirmed exact {success, data, meta:{...}} shape.", "schema_compliant": true},
+  "dashboard_summary_verification": {
+    "endpoint_returned": {
+      "period": {"start": "2022-01-01", "end": "2025-08-11"},
+      "gross_revenue": 1031419.11,
+      "net_revenue": 1031419.11,
+      "total_orders": 10000,
+      "avg_order_value": 103.14,
+      "profit_leak_count": 0,
+      "dead_stock_count": 0
+    },
+    "independently_recomputed": {"gross_revenue": "1031419.1100", "net_revenue": "1031419.1100", "total_orders": 10000, "avg_order_value": 103.14},
+    "match": true,
+    "gross_revenue_note": "This figure directly reflects Prompt 2's confirmed E1-4 finding (gross_revenue mis-mapped to the per-unit 'price' column, not the true order total 'total_price', for this specific file). The dashboard's own arithmetic is correct given this already-known-incorrect stored value -- not a new defect."
+  },
+  "dashboard_revenue_verification": {
+    "endpoint_returned": {"gross_revenue": 1031419.11, "net_revenue": 1031419.11, "gap": 0.0, "gap_breakdown": {"returns": 0, "discounts": 0, "shipping": 0, "processing": 0, "ad_spend": 0}, "monthly_trend_month_count": 44},
+    "independently_recomputed": {"gross_revenue": "1031419.1100", "net_revenue": "1031419.1100", "monthly_trend_first_3_months": [{"month": "2022-01", "gross": "26112.8400", "net": "26112.8400"}, {"month": "2022-02", "gross": "17328.8000", "net": "17328.8000"}, {"month": "2022-03", "gross": "22808.2700", "net": "22808.2700"}], "monthly_trend_month_count": 44},
+    "match": true,
+    "gap_zero_note": "gap=0 and gap_breakdown all-zero is correct and expected: this file has no refund_amount/discount_amount/shipping_cost/processing_fees/allocated_ad_spend columns at all (confirmed in Prompt 1/2), so all 5 components are None -> summed as 0 for every order. Currency shown as 'NGN' for all figures directly reflects Prompt 2's confirmed E1-5 finding (hardcoded default despite 15 real non-Nigerian countries in the source data) -- not a new defect."
+  },
+  "dashboard_sku_matrix_verification": {
+    "endpoint_returned": {"median_revenue": null, "median_margin_pct": null, "quadrant_counts": {"stars": 0, "cash_cows": 0, "question_marks": 0, "dogs": 0}, "unclassified_sku_count": 0, "disabled_features": []},
+    "independently_recomputed_via_direct_compute_sku_matrix_call": {"disabled": false, "median_revenue": null, "median_margin_pct": null, "quadrant_counts": {"stars": 0, "cash_cows": 0, "question_marks": 0, "dogs": 0}},
+    "match": true,
+    "finding": "This merchant has 0 order_items (confirmed in Prompt 2 -- this file has no sku column at all, so no OrderItem is ever created). compute_sku_matrix's coverage check (compute_cogs_coverage) reports disabled=False (NOT True) for this 0-line-item case, since its 'total > 0' guard is never satisfied -- the endpoint returns an empty-but-not-explicitly-disabled result (disabled_features: [], median values null, empty arrays) rather than a clear 'insufficient data' signal. NEW issue E3-1 (cross-referencing E2-4's identical ingestion-time pattern) -- logged once in QA_ISSUES.md, applies here."
+  },
+  "profit_leak_count_disabled_features_finding": {
+    "endpoint_returned": {"profit_leak_count": 0, "disabled_features": []},
+    "independently_recomputed_via_direct_compute_profit_leaks_call": {"disabled": false, "total_leaking_skus": 0},
+    "match": true,
+    "finding": "Same E3-1 gap as sku-matrix: 0 order_items for this merchant, compute_profit_leaks' coverage check does not trigger 'disabled' (guard requires total>0), so dashboard/summary reports profit_leak_count=0 (a concrete, if trivially-derived, number) with no disabled_features entry -- rather than signaling 'no data available to assess.' Same root cause as E3-1, not a separate issue."
+  },
+  "issues_found": [],
+  "issues_referenced_not_duplicated": ["E1-4", "E1-5", "E3-1 (new issue, first observed for this dataset, logged once in QA_ISSUES.md)"],
+  "status": "pass_with_issues",
+  "summary": "All 3 dashboard endpoints return correct, schema-compliant output for this merchant, with 0 arithmetic mismatches against independent recomputation. Every anomaly observed (understated gross_revenue, NGN currency, empty sku-matrix/profit-leak results) traces to already-known Prompt 1/2 findings (E1-4, E1-5) or the newly-identified, cross-referenced E3-1 gap -- no new dashboard-calculation defects found for this dataset.",
+  "can_proceed_to_prompt_4": true
+}

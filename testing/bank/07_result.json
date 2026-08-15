@@ -1,0 +1,674 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 7,
+  "prompt_name": "Final Validation",
+  "date": "2026-07-10",
+  "mode": "Consolidation only -- no new testing, no ingestion, no DB writes, no code changes, no prior result files modified. Read-only synthesis of testing/bank/*.json (Prompts 1-6) and testing/bank/QA_ISSUES.md.",
+  "path_note": "This prompt's own instructions specify testing/results/bank/ as the source/deliverable location. That path does not exist in this project -- it was created for Prompt 5 and then explicitly deleted at the user's request earlier in this engagement, with all Bank JSON results consolidated under testing/bank/ instead (the established, currently-real location for every prior deliverable: 04_result.json, 05_result.json, 06_result.json, and the 3x3 per-dataset files from Prompts 1-3). This report reads from and is written to testing/bank/ to match the actual, current state of the repository rather than the prompt template's literal (stale) path.",
+  "datasets_reviewed": [
+    {
+      "dataset": "scanwick_test_bank_statement.csv",
+      "account_id": "a8b7128c-fd10-42f9-90df-b7585cc6973a",
+      "prompts_with_results": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "missing_coverage": "None -- tested in all 6 prompts.",
+      "notes": "Two additional duplicate/orphan copies of this same file's data exist in app.db (account 9ae163fc, an accidental crash-orphan; account 889e6553, an intentional duplicate-ingestion test) -- both were tested in Prompts 2 and 3 specifically to characterize duplicate-ingestion behavior, but Prompts 4/5/6 deliberately used only the canonical a8b7128c account per those prompts' own instruction to test canonical accounts -- this is an intentional scope narrowing, not a coverage gap."
+    },
+    {
+      "dataset": "scanwick_bank_savings_clean.csv",
+      "account_id": "49cfae02-da8e-44c6-a1a6-93a2433a6cf3",
+      "prompts_with_results": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "missing_coverage": "None -- tested in all 6 prompts.",
+      "notes": "The account most affected by the is_own_account_transfer contamination (B3-1) -- consistently used across Prompts 3-6 as the primary evidence case for that issue's propagation."
+    },
+    {
+      "dataset": "scanwick_bank_wallet_clean.csv",
+      "account_id": "b70312cb-343a-43f4-be5b-1bf96ad51baa",
+      "prompts_with_results": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "missing_coverage": "None -- tested in all 6 prompts.",
+      "notes": "The account most affected by the balance-integrity failure (B2-3, discrepancy 800,624.14) despite being rated cleanest for data completeness in Prompt 1."
+    },
+    {
+      "dataset": "PS_20174392719_1491204439457_log.csv (PaySim)",
+      "account_id": null,
+      "prompts_with_results": [
+        5
+      ],
+      "missing_coverage": "Not tested in Prompts 1-4 or 6 -- correctly out of scope for those, since Prompt 5 confirmed (with precise code-level evidence) that this file's schema is fundamentally incompatible with the Bank ingestion pipeline (no ingestible date column) and cannot reach any endpoint tested in the other prompts. Not a coverage gap; a confirmed incompatibility.",
+      "notes": "Not Implemented, by design of the codebase, not by omission of this QA pass."
+    },
+    {
+      "dataset": "Synthetic zero-transaction / sparse-data case (in-memory, no file)",
+      "account_id": null,
+      "prompts_with_results": [
+        4,
+        5,
+        6
+      ],
+      "missing_coverage": "Not exercised in Prompts 1-3, which necessarily operate on real files/real ingested accounts and had no synthetic-edge-case component in scope.",
+      "notes": "Used consistently across Prompts 4, 5, and 6 via safe in-memory function calls (no DB writes) to characterize minimum-data/insufficient-data behavior -- this is where B5-2 (critical) and its Prompt 6 lender-brief recurrence were both discovered."
+    }
+  ],
+  "prompt_summaries": [
+    {
+      "prompt": 1,
+      "name": "Dataset Inspection + Schema Mapping",
+      "summary": "All 3 real Bank CSVs map cleanly onto the canonical schema with 0 rejected rows and 0 zero-amount rows (confirming a previously-fixed credit-column keyword bug stays fixed). Found: 1 ambiguous debit+credit row in the primary file (B1-1); ~15.7% missing balance values including the first row in the savings file (B1-2); 3 real, clean columns (value_date/channel/transaction_reference) not captured by ingestion in 2 of 3 files (B1-3). No currency or account-number columns in any file (handled gracefully via fallbacks). Verdict: PASS (primary, wallet), PASS WITH ISSUES (savings)."
+    },
+    {
+      "prompt": 2,
+      "name": "Ingestion Testing",
+      "summary": "All 3 files ingested with 0 rows rejected (465/1,670/8,158 rows respectively). is_anomalous flagging confirmed precise (0 false positives) via a real contextual marker. Found: is_own_account_transfer detection exists but is never auto-wired into ingestion (B2-1); no duplicate-ingestion protection at all, confirmed via both an accidental crash-orphan and an intentional re-ingestion (B2-2); balance-integrity fails for savings (discrepancy 32.76) and wallet (800,624.14, the worst of the three despite wallet having the most complete balance data) (B2-3); account_number_hash falls back to an upload-id-derived hash since no file has a real account number, so re-uploads are never recognized as the same account (B2-4). Verdict: PASS WITH ISSUES for all 3 files."
+    },
+    {
+      "prompt": 3,
+      "name": "Dashboard Endpoint Testing",
+      "summary": "compute_dashboard_summary's arithmetic (inflows, outflows, credit/debit counts) matched independent SQL recomputation exactly for all 5 accounts tested (3 canonical + 2 duplicate copies of the primary file). Response envelope confirmed correct. Found: is_own_account_transfer false positives (rooted in B2-1/B2-2) severely corrupt the savings account's dashboard -- 100% of its 933 real debits are wrongly excluded, reporting 0 outflows instead of the real 3,794,287.92 (B3-1, Critical); the same contamination affects the wallet account at ~4.2%; balance-integrity failures (B2-3) are invisible from this endpoint's output (B3-2); dashboard/summary has no disabled_features implementation at all (B3-3). Verdict: FAIL for the savings account specifically (dashboard output itself factually wrong); PASS WITH ISSUES for primary/wallet."
+    },
+    {
+      "prompt": 4,
+      "name": "Diagnostics Endpoint Testing",
+      "summary": "All 5 diagnostic endpoints (income-stability, abm, cashflow-analysis, customer-segmentation, revenue-patterns) implemented, RBAC-gated, and envelope-correct. 11 direct value comparisons against independent recomputation across all 3 accounts, 0 mismatches. Confirmed B3-1 propagates into cashflow-analysis/customer-segmentation for the savings account as expected (not a new defect). Found: ABM's trend label is sign-incorrect for accounts with a negative 12-month average balance -- the primary account's genuinely worsening trend is labeled 'improving' (B4-1, High); 3 of 5 diagnostics silently return null/empty instead of using the proper disabled_features mechanism for insufficient data (B4-2, Low). Verdict: PASS WITH ISSUES."
+    },
+    {
+      "prompt": 5,
+      "name": "Predictive Model Testing",
+      "summary": "All 3 predictive endpoints (fraud-risk, loan-readiness, cashflow-forecast) implemented and RBAC-gated; fraud-risk and loan-readiness scores hand-recomputed from their component parts and matched exactly, including a cross-endpoint consistency check. PaySim fraud-dataset compatibility confirmed genuinely Not Implemented (incompatible column schema), not worked around. Found: cash-runway calculation produces backwards-appearing results for already-overdrawn accounts (B5-1, High); loan-readiness scores a zero-transaction account as perfectly creditworthy, 100/Tier A, because compute_fraud_risk has no minimum-data floor (B5-2, Critical); B4-1's ABM mislabeling confirmed to inflate the primary account's loan-readiness score by the full 25-point abm_trend weight and suppress a legitimate recommendation (B5-3, High, cross-referenced to B4-1); B1-1's ambiguous row plausibly explains a fraud-risk statement-integrity failure (B5-4, Low, cross-referenced to B1-1). Verdict: PASS WITH ISSUES."
+    },
+    {
+      "prompt": 6,
+      "name": "AI Layer Testing",
+      "summary": "Both AI endpoints (lender-brief, financial-health-playbook) exist, are reachable, and return schema-valid AIRecommendation objects (20 recommendations checked, 0 schema failures) inside the correct response envelope. Every non-AI-generated numeric field in both endpoints matched real Prompt 3/4/5 reference values exactly across all 3 accounts, including faithful propagation of B4-1/B5-2/B5-3/B3-1/B2-3/B5-4 into the AI-facing documents. No hallucinations of financial fact found in any AI narrative text across 20 recommendations; in one case the model self-diagnosed the B5-2 defect unprompted. Found: lender-brief's own AI recommendation section failed in 4/4 real Gemini calls tested due to an 8-second-per-attempt timeout bug that is effectively guaranteed to fail given this environment's real response latency (B6-1, Critical); the required revenue_at_stake field is fabricated with no traceable basis whenever the account's data offers no natural anchor value (B6-2, Medium); created_at is never grounded to real generation time (B6-3, Low); the lender-brief endpoint has no disabled_features signaling at all, compounding B5-2's inflated zero-transaction score with the least guardrail messaging of any Bank endpoint tested (B6-4, Medium). Verdict: PASS WITH ISSUES."
+    }
+  ],
+  "implemented_features": [
+    "CSV ingestion (Account + BankTransaction canonical model) for 3 real file shapes",
+    "Contextual-marker-based anomaly flagging (is_anomalous) -- confirmed precise, 0 false positives",
+    "is_own_account_transfer detection function (exists, unit-tested, callable) -- see partially_implemented_features for its real-world reliability",
+    "account_number_hash (SHA-256, never plaintext) with a documented fallback for files with no account-number column",
+    "Currency-conversion mechanism (exchange_rate/base_currency_amount) -- correct for same-currency data, not exercised for real cross-currency conversion in any tested dataset",
+    "Dashboard Summary endpoint (inflows/outflows/balance/credit-debit-split/top-payees/monthly trend) -- arithmetic verified exact",
+    "5 diagnostic endpoints (income-stability, abm, cashflow-analysis, customer-segmentation, revenue-patterns) -- arithmetic verified exact",
+    "3 predictive endpoints (fraud-risk, loan-readiness, cashflow-forecast) -- arithmetic verified exact, cross-endpoint consistent",
+    "2 AI endpoints (lender-brief, financial-health-playbook) -- schema-valid, envelope-correct, non-AI content grounded exactly",
+    "RBAC (4 Bank roles, READ_ROLES gating, loan-officer/bank-viewer flag redaction on fraud-risk)",
+    "Shared response envelope ({success, data, meta:{missing_fields, disabled_features, analysis_run_id}}) -- consistent across all endpoints tested",
+    "disabled_features mechanism -- implemented and confirmed working for income-stability, abm, and financial-health-playbook specifically"
+  ],
+  "missing_features": [
+    "Duplicate-ingestion protection / dedup logic of any kind (B2-2)",
+    "Auto-wiring of is_own_account_transfer detection into the ingestion path (B2-1) -- it must currently be triggered manually",
+    "disabled_features signaling on: dashboard/summary (B3-3), cashflow-analysis/customer-segmentation/revenue-patterns (B4-2), fraud-risk and cashflow-forecast (no minimum-data disabled_features observed in Prompt 5's sparse-data tests), lender-brief (B6-4)",
+    "A minimum-data floor inside compute_fraud_risk (root cause of B5-2)",
+    "PaySim-compatible ingestion adapter -- confirmed genuinely absent by design; explicitly not built per this QA pass's own instructions, not a gap to close casually",
+    "Any mechanism to ground AIRecommendation.revenue_at_stake or .created_at to real, verifiable values (B6-2, B6-3)"
+  ],
+  "partially_implemented_features": [
+    "is_own_account_transfer -- the detection algorithm exists and functions, but is unreliable at real multi-account volume (severe false-positive rate, up to 100% for one tested account) and is not part of the automatic ingestion flow, so its results are also order/timing-dependent rather than deterministic (B2-1, B2-2, B3-1)",
+    "Balance-integrity checking -- computed and stored (balance_integrity_passed/balance_discrepancy) but only surfaced in isolation; not reflected in the dashboard endpoint at all (B3-2), though it IS correctly reflected as an informational field in fraud-risk's and lender-brief's statement_integrity block",
+    "disabled_features / insufficient-data signaling -- implemented well for 3 of the ~10 endpoints tested (income-stability, abm, financial-health-playbook), absent or inconsistent for the rest"
+  ],
+  "verified_features": [
+    "Ingestion row-count/rejection arithmetic (3/3 files, exact match)",
+    "Dashboard inflow/outflow/credit-debit-count arithmetic (5/5 accounts, exact match)",
+    "All 5 diagnostic endpoints' returned values (11/11 direct comparisons, exact match)",
+    "All 3 predictive endpoints' returned scores (hand-recomputed from component flags/weights, exact match, cross-endpoint consistent)",
+    "AIRecommendation schema conformance (20/20 recommendations checked, 0 failures)",
+    "AI-endpoint non-LLM-generated numeric content grounding (100% match to real Prompt 3/4/5 reference values, all 3 accounts)",
+    "Response envelope shape (consistent across every endpoint tested in Prompts 3-6)",
+    "RBAC role-gating and flag redaction (fraud-risk, loan-officer/bank-viewer roles)"
+  ],
+  "not_yet_verified_features": [
+    "XLSX ingestion path for the Bank vertical -- Not Observed within Prompts 1-6 (all 3 tested files were CSV; XLSX support was added in an earlier remediation phase of this engagement but not exercised by any Bank QA prompt to date)",
+    "Alembic migrations against a real non-SQLite Postgres backend specifically within this Bank QA pass -- Not Observed here (validated separately in the earlier 4-issue remediation phase of this engagement, outside the scope of Prompts 1-6)",
+    "True concurrent/multi-user or multi-merchant access patterns -- Not Observed; all testing used a single stub user/merchant",
+    "is_own_account_transfer behavior under conditions where the greedy matcher is NOT run as a single manual global pass (i.e., its behavior if it were auto-wired per-ingestion rather than run once across all existing accounts) -- Unknown, since it has never been tested in that configuration"
+  ],
+  "consolidated_issues": [
+    {
+      "issue_id": "B1-1",
+      "first_discovered_prompt": 1,
+      "severity": "Medium",
+      "description": "Ambiguous debit+credit row in the primary file (row 158) nets via credit-abs(debit) rather than a literal column read.",
+      "root_cause": "Source-data anomaly, not a code defect.",
+      "affected_datasets": [
+        "scanwick_test_bank_statement.csv"
+      ],
+      "affected_endpoints": [
+        "ingestion",
+        "dashboard/summary (top-payees)",
+        "predictive/fraud-risk (statement_integrity)",
+        "ai/lender-brief (risk_flags)"
+      ],
+      "current_status": "Resolved",
+      "downstream_impact": "Confirmed benign for dashboard purposes (nets to one coherent top-payee entry); plausibly linked to B5-4's fraud-risk sequential_ordering failure, propagating unchanged into the lender-brief's risk_flags in Prompt 6.",
+      "related_ids": [
+        "B5-4"
+      ],
+      "github_issue": null,
+      "github_migration_note": "Not migrated -- status Resolved (confirmed benign in Prompt 3)."
+    },
+    {
+      "issue_id": "B1-2",
+      "first_discovered_prompt": 1,
+      "severity": "Medium",
+      "description": "263/1,670 rows (~15.7%) missing balance in the savings file, including the first row.",
+      "root_cause": "Source-data completeness gap.",
+      "affected_datasets": [
+        "scanwick_bank_savings_clean.csv"
+      ],
+      "affected_endpoints": [
+        "ingestion"
+      ],
+      "current_status": "Resolved",
+      "downstream_impact": "Escalated by real ingestion into a confirmed balance-integrity failure -- see B2-3 (merged forward, not a separate ongoing issue).",
+      "related_ids": [
+        "B2-3"
+      ],
+      "github_issue": null,
+      "github_migration_note": "Not migrated -- superseded by B2-3 (escalated forward, not an independently open issue)."
+    },
+    {
+      "issue_id": "B1-3",
+      "first_discovered_prompt": 1,
+      "severity": "Low",
+      "description": "value_date, channel, and transaction_reference columns present in 2 of 3 files are not captured by ingestion at all.",
+      "root_cause": "No keyword-detection mapping implemented for these fields.",
+      "affected_datasets": [
+        "scanwick_bank_savings_clean.csv",
+        "scanwick_bank_wallet_clean.csv"
+      ],
+      "affected_endpoints": [
+        "ingestion"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "None observed through Prompt 6 -- confirmed these uncaptured columns don't feed any compute_* function used by any tested endpoint, including the AI layer.",
+      "related_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/3"
+    },
+    {
+      "issue_id": "B2-1",
+      "first_discovered_prompt": 2,
+      "severity": "High",
+      "description": "detect_own_account_transfers() exists and is unit-tested but is never called automatically anywhere in the real ingestion path.",
+      "root_cause": "Architectural gap -- built but never wired in.",
+      "affected_datasets": [
+        "all 3"
+      ],
+      "affected_endpoints": [
+        "ingestion",
+        "dashboard/summary",
+        "diagnostic/cashflow-analysis",
+        "diagnostic/customer-segmentation",
+        "predictive/loan-readiness",
+        "predictive/cashflow-forecast",
+        "ai/lender-brief",
+        "ai/financial-health-playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Root cause (jointly with B2-2) of B3-1's severe dashboard corruption; unresolved and still directly observable in the Prompt 6 AI-layer outputs.",
+      "related_ids": [
+        "B2-2",
+        "B3-1"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/4"
+    },
+    {
+      "issue_id": "B2-2",
+      "first_discovered_prompt": 2,
+      "severity": "High",
+      "description": "No unique constraints or dedup-check logic anywhere in the ingestion path; re-ingesting the same file creates a full duplicate Account + BankTransaction set every time.",
+      "root_cause": "No dedup mechanism designed/implemented.",
+      "affected_datasets": [
+        "scanwick_test_bank_statement.csv (confirmed via 3 coexisting copies)"
+      ],
+      "affected_endpoints": [
+        "ingestion",
+        "dashboard/summary"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Direct cause of the primary file's 3 duplicate copies producing 2 different sets of dashboard numbers (Prompt 3); compounds B3-1's severity.",
+      "related_ids": [
+        "B2-1",
+        "B3-1"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/5"
+    },
+    {
+      "issue_id": "B2-3",
+      "first_discovered_prompt": 2,
+      "severity": "High",
+      "description": "Balance-integrity check fails for 2 of 3 real files: savings discrepancy 32.76, wallet discrepancy 800,624.14 (the largest, despite wallet having zero null balance values).",
+      "root_cause": "Unknown -- could be a source-data recording error or a gap in opening/closing balance derivation from partial statement exports; never root-caused across any of the 6 prompts.",
+      "affected_datasets": [
+        "scanwick_bank_savings_clean.csv",
+        "scanwick_bank_wallet_clean.csv"
+      ],
+      "affected_endpoints": [
+        "ingestion",
+        "predictive/fraud-risk (statement_integrity.balance_check)",
+        "ai/lender-brief (risk_flags.statement_integrity)"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Invisible from dashboard/summary (B3-2); correctly reflected as an informational 'failed' flag in fraud-risk and lender-brief for both affected accounts through Prompt 6, with no incorrect score resulting from it in either case.",
+      "related_ids": [
+        "B1-2",
+        "B3-2"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/6"
+    },
+    {
+      "issue_id": "B2-4",
+      "first_discovered_prompt": 2,
+      "severity": "Medium",
+      "description": "account_number_hash falls back to a hash of the upload_id (not a real account number) since none of the 3 files has an account-number column.",
+      "root_cause": "Dataset limitation combined with fallback design.",
+      "affected_datasets": [
+        "all 3"
+      ],
+      "affected_endpoints": [
+        "ingestion"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Every re-upload of the same real account is indistinguishable from an unrelated new account, compounding B2-2/B3-1's severity since accounts can't be recognized as 'the same' after the fact.",
+      "related_ids": [
+        "B2-2"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/7"
+    },
+    {
+      "issue_id": "B3-1",
+      "first_discovered_prompt": 3,
+      "severity": "Critical",
+      "description": "is_own_account_transfer false positives suppress up to 100% of an account's real outflows: the savings account shows 933/933 debits wrongly flagged (0 reported outflow vs. real 3,794,287.92); wallet shows the same at ~4.2%.",
+      "root_cause": "Compounding of B2-1 (no auto-wiring, single manual global pass) and B2-2 (multiple duplicate accounts coexisting, making false cross-matches likely at volume) with an unscoped, greedy same-day/amount-tolerance matcher.",
+      "affected_datasets": [
+        "scanwick_bank_savings_clean.csv",
+        "scanwick_bank_wallet_clean.csv",
+        "scanwick_test_bank_statement.csv (its duplicate copies)"
+      ],
+      "affected_endpoints": [
+        "dashboard/summary",
+        "diagnostic/cashflow-analysis",
+        "diagnostic/customer-segmentation",
+        "predictive/loan-readiness",
+        "predictive/cashflow-forecast",
+        "ai/lender-brief",
+        "ai/financial-health-playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "The single most consequential unresolved issue across all 6 prompts -- confirmed to still directly affect the savings account's cash_buffer/cashflow-forecast/lender-brief output in Prompt 6, with the AI layer's own generated recommendation only able to offer a generic, root-cause-blind 'verify data completeness' suggestion since the contamination detail isn't in its context.",
+      "related_ids": [
+        "B2-1",
+        "B2-2"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/8"
+    },
+    {
+      "issue_id": "B3-2",
+      "first_discovered_prompt": 3,
+      "severity": "Medium",
+      "description": "Balance-integrity failures (B2-3) are not surfaced anywhere in the dashboard/summary endpoint's response.",
+      "root_cause": "compute_dashboard_summary reads opening_balance/closing_balance directly without checking/surfacing balance_integrity_passed.",
+      "affected_datasets": [
+        "scanwick_bank_savings_clean.csv",
+        "scanwick_bank_wallet_clean.csv"
+      ],
+      "affected_endpoints": [
+        "dashboard/summary"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Remains true through Prompt 6 -- this specific endpoint still has no reconciliation-status signal, though the information is available elsewhere (fraud-risk, lender-brief).",
+      "related_ids": [
+        "B2-3"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/9"
+    },
+    {
+      "issue_id": "B3-3",
+      "first_discovered_prompt": 3,
+      "severity": "Low",
+      "description": "dashboard/summary never implements a disabled_features condition; always returns [].",
+      "root_cause": "No minimum-data threshold coded for this endpoint.",
+      "affected_datasets": [
+        "all 3"
+      ],
+      "affected_endpoints": [
+        "dashboard/summary"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Informational; no incorrect data resulted from this in any prompt.",
+      "related_ids": [
+        "B4-2",
+        "B6-4"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/10"
+    },
+    {
+      "issue_id": "B3-4",
+      "first_discovered_prompt": 3,
+      "severity": "Low",
+      "description": "Pre-existing user_merchant_roles test-scaffolding row stored merchant_id in a UUID format inconsistent with the ORM's normal form, causing a 403 until a second, correct row was added.",
+      "root_cause": "An earlier ad-hoc script (from an unrelated part of this engagement) inserted the row via raw SQL rather than the ORM.",
+      "affected_datasets": [],
+      "affected_endpoints": [],
+      "current_status": "Resolved",
+      "downstream_impact": "None on real application behavior -- test-environment artifact only, not an application defect. Workaround (an additional ORM-consistent row) remained in place and was reused successfully through Prompt 6.",
+      "related_ids": [],
+      "github_issue": null,
+      "github_migration_note": "Not migrated -- status Resolved (test-scaffolding workaround applied, not an application defect)."
+    },
+    {
+      "issue_id": "B4-1",
+      "first_discovered_prompt": 4,
+      "severity": "High",
+      "description": "ABM's trend label is sign-incorrect for accounts with a negative 12-month average balance -- the primary account's genuinely worsening trend (abm_12m=-2,915,069.24, abm_3m=-5,976,353.55) is labeled 'improving'.",
+      "root_cause": "pct_change = (abm_3m - abm_12m) / abm_12m * 100 flips sign when abm_12m is negative; the underlying abm_3m/6m/12m values themselves are correct.",
+      "affected_datasets": [
+        "scanwick_test_bank_statement.csv"
+      ],
+      "affected_endpoints": [
+        "diagnostic/abm",
+        "predictive/loan-readiness",
+        "ai/lender-brief"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Confirmed (Prompt 5, B5-3) to inflate the primary account's loan_readiness_score by the full 25-point abm_trend weight and suppress a legitimate recommendation; confirmed (Prompt 6) to appear verbatim, uncaveated, in the primary account's customer/lender-facing lender-brief document.",
+      "related_ids": [
+        "B5-3"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/11"
+    },
+    {
+      "issue_id": "B4-2",
+      "first_discovered_prompt": 4,
+      "severity": "Low",
+      "description": "3 of 5 diagnostic endpoints (cashflow-analysis, customer-segmentation, revenue-patterns) silently return null/empty structures for insufficient data instead of using the disabled_features mechanism that income-stability/abm use.",
+      "root_cause": "Route handlers for these 3 never pass disabled_features to success_response; no minimum-data gate implemented for them.",
+      "affected_datasets": [
+        "all 3"
+      ],
+      "affected_endpoints": [
+        "diagnostic/cashflow-analysis",
+        "diagnostic/customer-segmentation",
+        "diagnostic/revenue-patterns"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Not misleading (values are honestly null/empty, not fabricated), but inconsistent with the other 2 diagnostics and with financial-health-playbook's later, more complete implementation of the same pattern.",
+      "related_ids": [
+        "B3-3",
+        "B6-4"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/12"
+    },
+    {
+      "issue_id": "B5-1",
+      "first_discovered_prompt": 5,
+      "severity": "High",
+      "description": "Cash-runway calculation produces backwards-appearing results for already-overdrawn accounts -- the primary account's stress_scenario_months (-5.9) is numerically greater (less negative, i.e. appears 'better') than primary_scenario_months (-10.7).",
+      "root_cause": "_cash_runway_months's formula was designed for a positive starting balance; never guarded against an already-negative current_balance.",
+      "affected_datasets": [
+        "scanwick_test_bank_statement.csv"
+      ],
+      "affected_endpoints": [
+        "predictive/cashflow-forecast"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Confirmed (Prompt 6) to NOT propagate into either AI endpoint -- neither calls compute_cashflow_forecast or references runway/forecast concepts anywhere in its context or output.",
+      "related_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/13"
+    },
+    {
+      "issue_id": "B5-2",
+      "first_discovered_prompt": 5,
+      "severity": "Critical",
+      "description": "compute_loan_readiness([]) returns loan_readiness_score=100, creditworthiness_tier='A' for a zero-transaction account, because compute_fraud_risk has no minimum-data floor and returns a trivial 0-risk score for empty input, which then receives 100% of the re-normalized weight.",
+      "root_cause": "compute_fraud_risk lacks a minimum-data floor; compute_loan_readiness's weight-renormalization has no minimum-available-components gate.",
+      "affected_datasets": [
+        "N/A -- reproduced via safe in-memory zero-transaction calls, not a real dataset"
+      ],
+      "affected_endpoints": [
+        "predictive/loan-readiness",
+        "ai/lender-brief"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "The single most severe unresolved issue in this analyzer -- confirmed (Prompt 6) to reproduce identically inside the lender-brief document, compounded by B6-4 (no warning signal anywhere in that document for this exact condition).",
+      "related_ids": [
+        "B6-4"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/14"
+    },
+    {
+      "issue_id": "B5-3",
+      "first_discovered_prompt": 5,
+      "severity": "High",
+      "description": "Quantified downstream effect of B4-1: the primary account's abm_trend component contributes the full 25.0/25.0 weighted points to its loan_readiness_score (62 total) due to the wrong 'improving' label, and suppresses a legitimate improvement_recommendations entry.",
+      "root_cause": "B4-1 (not a separate defect).",
+      "affected_datasets": [
+        "scanwick_test_bank_statement.csv"
+      ],
+      "affected_endpoints": [
+        "predictive/loan-readiness"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Same as B4-1 -- fixing B4-1 at the source resolves this without a separate change.",
+      "related_ids": [
+        "B4-1"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/15"
+    },
+    {
+      "issue_id": "B5-4",
+      "first_discovered_prompt": 5,
+      "severity": "Low",
+      "description": "The primary file's one ambiguous debit+credit row (B1-1) plausibly causes fraud-risk's statement_integrity.sequential_ordering to report 'failed' for an otherwise fully-passing account.",
+      "root_cause": "B1-1 (source-data anomaly, not a new code defect).",
+      "affected_datasets": [
+        "scanwick_test_bank_statement.csv"
+      ],
+      "affected_endpoints": [
+        "predictive/fraud-risk",
+        "ai/lender-brief"
+      ],
+      "current_status": "Not Re-tested",
+      "downstream_impact": "Never confirmed with row-level certainty across any of the 6 prompts; propagates unchanged (same 'failed' value) into the Prompt 6 lender-brief.",
+      "related_ids": [
+        "B1-1"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/16"
+    },
+    {
+      "issue_id": "B6-1",
+      "first_discovered_prompt": 6,
+      "severity": "Critical",
+      "description": "lender_recommendation is always empty -- 4/4 real Gemini calls tested (3 accounts + 1 sparse-data call) failed with 'Gemini API call failed after 3 attempts'.",
+      "root_cause": "bank_lender_brief.py passes an 8-second timeout that ai_client.py's generate_text() applies as a PER-ATTEMPT httpx timeout inside its own 3-retry loop, not a total call budget; the real Gemini response for this prompt template consistently exceeds 8s but succeeds reliably within the sibling endpoint's default 30s timeout.",
+      "affected_datasets": [
+        "all 3, plus the sparse-data case"
+      ],
+      "affected_endpoints": [
+        "ai/lender-brief"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "This AI feature has never once succeeded end-to-end in this environment; degrades silently (success:true, empty array) with no error surfaced to the caller.",
+      "related_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/17"
+    },
+    {
+      "issue_id": "B6-2",
+      "first_discovered_prompt": 6,
+      "severity": "Medium",
+      "description": "AIRecommendation.revenue_at_stake is fabricated with no traceable basis whenever the account's real data offers no natural anchor value (savings account 5/5 recommendations, sparse test 2/2); well-grounded only when a real anchor value exists (wallet 6/8, several of primary's).",
+      "root_cause": "The shared prompt template asks for 'a number representing the revenue impact' with no defined methodology, so the model invents one when no natural anchor exists.",
+      "affected_datasets": [
+        "scanwick_bank_savings_clean.csv",
+        "N/A (sparse case)"
+      ],
+      "affected_endpoints": [
+        "ai/financial-health-playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "revenue_at_stake cannot be trusted as an authoritative figure across the board.",
+      "related_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/18"
+    },
+    {
+      "issue_id": "B6-3",
+      "first_discovered_prompt": 6,
+      "severity": "Low",
+      "description": "AIRecommendation.created_at is never grounded to real generation time across all 20 recommendations tested (all fabricated plausible-looking past dates, e.g. 2023-10-27).",
+      "root_cause": "The shared prompt template never supplies the model with the actual current date/time.",
+      "affected_datasets": [
+        "all 3, plus the sparse-data case"
+      ],
+      "affected_endpoints": [
+        "ai/financial-health-playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "No active consequence today (nothing reads/relies on this field), but a latent trust gap.",
+      "related_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/19"
+    },
+    {
+      "issue_id": "B6-4",
+      "first_discovered_prompt": 6,
+      "severity": "Medium",
+      "description": "The lender-brief endpoint has no disabled_features signaling at any level (unlike its sibling financial-health-playbook), so a zero-transaction account's inflated B5-2 score (100/Tier A) is shown with no top-level warning anywhere in the response.",
+      "root_cause": "get_lender_brief_response and its route handler were never built with a disabled_features return path.",
+      "affected_datasets": [
+        "N/A -- reproduced via the safe in-memory sparse-data call"
+      ],
+      "affected_endpoints": [
+        "ai/lender-brief"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Compounds B5-2's risk by presenting the inflated score in the most prominent, decision-facing document in the vertical with the least guardrail messaging of any endpoint tested in Prompts 3-6.",
+      "related_ids": [
+        "B5-2",
+        "B3-3",
+        "B4-2"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/20"
+    }
+  ],
+  "root_cause_groups": [
+    {
+      "group": "Own-account-transfer detection & duplicate ingestion",
+      "related_issues": [
+        "B2-1",
+        "B2-2",
+        "B2-4",
+        "B3-1"
+      ],
+      "explanation": "B2-1 (detection never auto-wired into ingestion) and B2-2 (no duplicate-ingestion protection) compound directly into B3-1, the most severe unresolved issue found across all 6 prompts: up to 100% of a real account's outflows suppressed by false-positive transfer flags. B2-4 (hash-based account fallback) worsens this by preventing the system from even recognizing repeat uploads of the same account after the fact. This root cause propagated forward into every subsequent prompt's results for the savings account (dashboard, 2 diagnostics, 2 predictive components, both AI endpoints)."
+    },
+    {
+      "group": "Balance integrity",
+      "related_issues": [
+        "B1-2",
+        "B2-3",
+        "B3-2"
+      ],
+      "explanation": "A source-data/derivation gap (root cause never determined) causes 2 of 3 real files to fail balance reconciliation. This is invisible from the dashboard endpoint specifically (B3-2), but is correctly, consistently surfaced as an informational 'failed' flag in fraud-risk and the lender-brief through Prompt 6, with no incorrect score ever resulting from it."
+    },
+    {
+      "group": "Diagnostic/predictive calculation defect (ABM trend sign)",
+      "related_issues": [
+        "B4-1",
+        "B5-3"
+      ],
+      "explanation": "A single sign-handling bug in compute_abm's trend-label formula (specific to negative 12-month baselines) was first observed as a diagnostic-display issue (B4-1), then confirmed to have a quantified, material effect on the loan-readiness composite score (B5-3), then confirmed to appear unchanged and uncaveated in the customer/lender-facing lender-brief document (Prompt 6)."
+    },
+    {
+      "group": "Zero/sparse-data scoring artifacts",
+      "related_issues": [
+        "B5-2",
+        "B6-4"
+      ],
+      "explanation": "compute_fraud_risk's lack of a minimum-data floor causes an account with zero transactions to score as maximally creditworthy (B5-2). This is compounded, not caught, at the AI layer: the lender-brief endpoint has no disabled_features mechanism at all to warn a reader that the perfect score comes from an account with no verifiable history (B6-4) -- notably, the sibling financial-health-playbook endpoint's own AI-generated text independently recognized and flagged this exact risk when given the chance, showing the gap is structural (missing warning plumbing) rather than a model limitation."
+    },
+    {
+      "group": "Cashflow forecast sign handling",
+      "related_issues": [
+        "B5-1"
+      ],
+      "explanation": "An isolated defect: the cash-runway formula was never designed for an already-negative starting balance. Confirmed not to share a root cause with, or propagate into, any other issue or the AI layer."
+    },
+    {
+      "group": "AI dependency / Gemini integration reliability and field grounding",
+      "related_issues": [
+        "B6-1",
+        "B6-2",
+        "B6-3"
+      ],
+      "explanation": "A timeout-handling bug in the shared Gemini client (per-attempt rather than total budget) causes one specific caller (lender-brief, with its tighter 8s budget) to fail deterministically while its sibling (financial-health-playbook, 30s budget) succeeds reliably with the identical prompt template. Separately, two required AIRecommendation fields (revenue_at_stake, created_at) have no defined grounding methodology in the shared prompt template, so the model fabricates plausible values whenever it lacks a real anchor -- most severe for accounts with the least real data (compounding the same underlying 'thin data' condition that also drives B5-2)."
+    },
+    {
+      "group": "Ambiguous source-data row",
+      "related_issues": [
+        "B1-1",
+        "B5-4"
+      ],
+      "explanation": "One synthetic-looking anomalous row in the primary file causes an informational integrity-check field ('sequential_ordering') to read 'failed' rather than 'passed'. Confirmed benign for every actual calculation (dashboard, fraud score) that touches this row; the causal link to the sequential_ordering flag itself was never confirmed with row-level certainty."
+    },
+    {
+      "group": "Minor/informational gaps (uncaptured columns, inconsistent disabled_features)",
+      "related_issues": [
+        "B1-3",
+        "B3-3",
+        "B4-2",
+        "B6-4"
+      ],
+      "explanation": "Several endpoints across the analyzer (dashboard, 3 of 5 diagnostics, lender-brief) never implement the disabled_features/insufficient-data-signaling pattern that income-stability, abm, and financial-health-playbook do use correctly -- an inconsistency in how gracefully different endpoints communicate thin data, not a correctness defect in any single one."
+    },
+    {
+      "group": "Test-environment scaffolding (not an application defect)",
+      "related_issues": [
+        "B3-4"
+      ],
+      "explanation": "A malformed RBAC row from an earlier, unrelated ad-hoc script in this engagement caused a 403 during Prompt 3 setup. Resolved by adding a correct row alongside it; has no bearing on real application behavior."
+    }
+  ],
+  "overall_statistics": {
+    "critical": 3,
+    "high": 6,
+    "medium": 6,
+    "low": 6,
+    "resolved": 3,
+    "partially_resolved": 0,
+    "open": 18
+  },
+  "integration_recommendations": [
+    "Verify the savings account's real outflow figure (3,794,287.92, currently suppressed to 0 by B3-1) and the wallet/primary accounts' balance-integrity discrepancies (B2-3) against the reconciliation_reports table, if Integration Prompt 1 compares Bank dashboard/AI figures to an independent reconciliation source.",
+    "Verify is_own_account_transfer / duplicate-ingestion behavior (B2-1/B2-2/B2-4/B3-1) under true multi-merchant, multi-account integration conditions -- this QA pass only observed it under a single manually-triggered global pass across one merchant's accounts; whether the same false-positive pattern occurs, or worsens, across merchant boundaries is Unknown.",
+    "Check whether Ecommerce and Sales' own AI playbook endpoints share the same generate_recommendations()/ai_client.py code path with a similarly tight custom timeout (the root cause of B6-1) -- if so, the identical deterministic-failure pattern should be expected there too and is worth confirming during any cross-analyzer AI-layer integration check.",
+    "Confirm response-envelope and disabled_features consistency across all three verticals' equivalent endpoints -- this analyzer alone shows the same inconsistency pattern (some endpoints signal insufficient data properly, others silently return nulls) in at least 4 separate places (B3-3, B4-2, B6-4); worth a cross-analyzer sweep rather than treating each vertical's version as independent.",
+    "If any merchant-onboarding or new-account integration flow can realistically query loan-readiness or the lender-brief before real transaction history exists, explicitly test against B5-2's zero-transaction-scores-100 behavior before that flow is trusted for any real lending decision.",
+    "If Integration testing includes any cross-referencing of accounts by identity (e.g., matching a re-uploaded statement to an existing account), account_number_hash's upload-id-based fallback (B2-4) means this will not work for any of the 3 real Bank file shapes tested here -- confirm whether Integration's matching logic depends on this."
+  ],
+  "overall_verdict": "READY WITH OPEN ISSUES",
+  "ready_for_integration": true,
+  "summary": "Across all 6 prompts and every dataset tested, every independently-recomputable calculation in the Bank Analyzer -- ingestion row counts, dashboard totals, all 5 diagnostics, all 3 predictive model scores, and every non-AI-generated figure surfaced by the 2 AI endpoints -- matched independent recomputation exactly, with zero arithmetic mismatches found in any prompt. No crashes, no data corruption, and no security issues were observed anywhere in this pass. However, 21 distinct issues were logged across the 6 prompts, including 3 Critical and 6 High-severity issues that remain fully Open as of Prompt 6: is_own_account_transfer false positives that can suppress up to 100% of a real account's reported outflows (B3-1); a zero-transaction account scoring as perfectly creditworthy (B5-2); and a deterministic Gemini-timeout bug that has caused the lender-brief's AI recommendation section to fail in every real call tested (B6-1). These three critical issues, plus the compounding lack of insufficient-data warnings on several endpoints (B3-3, B4-2, B6-4), mean a real user could currently be shown misleading headline figures (zero spending, perfect credit score) with no warning that the underlying data is either contaminated or absent. None of this blocks moving forward -- every issue degrades gracefully/silently rather than breaking the system, and the core calculation logic is sound -- but these issues should be fixed, or at minimum explicitly flagged to whoever consumes Integration Testing's results, before the Bank Analyzer is treated as trustworthy for real lending or financial decisions.",
+  "traceability_note": "Every issue ID in consolidated_issues is preserved from its original discovery prompt (Prompts 1-6's own JSON files and testing/bank/QA_ISSUES.md) with no renumbering, removal, or silent merging -- issues with a shared root cause are cross-referenced via related_ids rather than collapsed into a single ID.",
+  "github_issues_migration_note": "All Open issues from this report were migrated to GitHub Issues on 2026-07-11 (see testing/bank/QA_ISSUES_ARCHIVED.md). Each issue above carries its GitHub Issue URL in the github_issue field; issues not migrated (Resolved/superseded/non-defect entries) carry a github_migration_note explaining why."
+}

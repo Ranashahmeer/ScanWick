@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+dev-dist/
+.next/
+
+# Local env files
+.env*.local
+.env
+# Note: .env.example is intentionally NOT ignored — it's a checked-in template
+# with placeholder values only, so contributors know which vars to set.
+
+# OS files
+.DS_Store
+__pycache__/
+*.pyc
+
+# Local file storage backend (dev uploads)
+backend/uploads/
+
+# Local test/reference datasets (not part of the codebase, kept off GitHub)
+backend/datasets/
+
+# Redis dev snapshot
+dump.rdb
+
+# Python virtualenvs
+venv/
+.venv/
+*.egg-info/
+
+# Embedded Python runtime (was accidentally committed; local dev tool, not source)
+backend/Python/
+
+# Local SQLite dev database (data file, not source)
+backend/app.db
+
+# TanStack Router generated build cache
+frontend/.tanstack/

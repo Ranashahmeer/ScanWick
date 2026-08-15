@@ -1,0 +1,42 @@
+CUSTOMER STATEMENT
+OGUNFOWORA  SODIQ OLUWASEYE
+Statement Period
+01-Jul-2026-31-Jul-2026
+Branch Name
+IJEBU - ODE
+Account No.
+064XXXX837
+Internal Reference
+R00XXXX454
+Account Type
+SAVINGS
+Currency
+NIGERIAN NAIRA
+Opening Balance
+143.46
+Trans. Date
+Value Date
+Reference
+Debits
+Credits
+Balance
+Originating Branch
+Remarks
+31-Jul-2026
+31-Jul-2026
+'
+                  .10
+ 
+               143.36
+IJEBU - ODE
+WITHHOLDING TAX 0647907837:WTax.Pd:01-07-2026to
+31-07-2026 Interest run
+31-Jul-2026
+31-Jul-2026
+'
+ 
+                  .97
+               144.33
+IJEBU - ODE
+INTEREST CAPITALISED 0647907837:Int.Pd:01-07-2026
+to 31-07-2026 Interest run

@@ -1,0 +1,34 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 5,
+  "prompt_name": "Predictive Model Testing",
+  "dataset_name": "Olist multi-table set (via ecommerce_olist_adapter.py)",
+  "merchant_id_tested": "33333333-3333-3333-3333-333333333333",
+  "response_envelope_verification": {"rfm_and_churn": "Confirmed exact {success, data, meta:{...}} shape.", "inventory_forecast": "Not fully obtained for this merchant -- see performance finding below."},
+  "inventory_forecast_verification": {
+    "attempted": true,
+    "finding": "A real call to GET /predictive/inventory-forecast for this merchant (real catalog of ~33,000 distinct SKUs) was confirmed still actively computing (rising CPU time, 600+ seconds consumed, not hung/crashed) after more than 12 minutes, and was deliberately terminated for QA practicality rather than run to completion. NEW issue E5-2 (Low -- a genuine performance/scalability characteristic, not a correctness defect; every individual Holt-Winters fit observed via warnings completed without a fatal error). The full forecasts/skus_excluded_insufficient_history counts for this merchant were NOT obtained -- explicitly reported as Not Observed rather than estimated or fabricated.",
+    "root_cause": "compute_holt_winters_forecast fits one full statsmodels ExponentialSmoothing model sequentially per distinct SKU with no batching/parallelization -- confirmed via code reading (app/services/ecommerce_holt_winters.py:67-118), consistent with the observed runtime for a catalog this large.",
+    "underlying_model_still_confirmed_correct": "This finding is about response time/scale, not correctness -- the same model logic already verified correct and directionally sane for the primary merchant's 8 SKUs (see dataset_01's 05_result.json) is the identical code path used here; no reason to expect a different correctness outcome, only a much longer runtime given the SKU count."
+  },
+  "rfm_segments_verification": {
+    "endpoint_returned": {"clusters_produced": 0, "unidentified_order_count": 112650, "all_segments_empty": true},
+    "finding": "Correct and fast (no per-SKU model fitting involved, unlike inventory-forecast): all 112,650 Olist orders have customer_id=None (Olist has no email data, confirmed since Prompt 1/2), so by_customer is empty and the function correctly short-circuits."
+  },
+  "churn_risk_verification": {
+    "endpoint_returned": {"insufficient_data": true, "unidentified_order_count": 112650, "high_risk_customers": []},
+    "finding": "Correct, same root cause as RFM -- 0 identified customers, correctly triggers insufficient_data rather than crashing."
+  },
+  "ad_kill_switch_verification": {
+    "note": "Not tested for this merchant -- no MerchantSettings/ad_kill_mode was configured for it in this prompt, and this merchant's real channel proxy (payment_type, per the Olist adapter's mapping) was not part of this prompt's scoped verification."
+  },
+  "issue_propagation_summary": {
+    "propagates": [],
+    "does_not_apply": ["E1-3 (confirmed via code reading, no predictive endpoint references Order.status)", "E1-4/E1-5 (10k-file-specific, not applicable to Olist)", "E2-1 (no ad-kill-switch test performed for this merchant)", "E2-2 (not part of the duplicate-ingestion test)", "E2-3", "E2-4/E3-1", "E4-1", "E4-2", "E4-3"],
+    "related_pattern_noted": ["E3-2 (same wall-clock pattern architecturally present but not exercised meaningfully here, since RFM/churn both short-circuit before reaching any date-relative calculation)"],
+    "new_issues_this_prompt": ["E5-2"]
+  },
+  "status": "pass_with_issues",
+  "summary": "RFM and churn-risk both return correct, fast, honest empty results for this merchant, consistent with its known 0-identified-customer state. Inventory-forecast's correctness could not be fully re-verified at full scale for this merchant within a practical QA timeframe -- confirmed as a genuine performance/scalability finding (E5-2), not a correctness defect, since the identical underlying model was already verified sane on real data for the primary merchant.",
+  "can_proceed_to_prompt_6": true
+}

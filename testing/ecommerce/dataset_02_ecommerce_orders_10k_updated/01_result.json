@@ -1,0 +1,51 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 1,
+  "prompt_name": "Dataset Inspection + Schema Mapping",
+  "dataset_name": "ecommerce_orders_10k_updated.csv",
+  "dataset_path": "backend/datasets/Ecommerce Order Dataset/ecommerce_orders_10k_updated.csv",
+  "recommended_ingestion_source": "generic_csv (OrderDataSource.generic_csv) -- no Shopify/WooCommerce literal headers present; the only usable path is the generic map's fallback-role resolution (see field_mapping).",
+  "status": "pass_with_issues",
+  "summary": "10,000 rows, 0 duplicate order_ids, internally consistent (total_price == price*qty for all rows, 0 unparseable dates). However this file has only 10 columns and is missing every field needed for SKU-level or COGS-level fidelity: no sku, cogs, customer_email, currency, or channel column exists at all. This is confirmed (not assumed) to be a row-count/ingestion-volume test only, matching Scanwick_QA_Testing_Scripts.md's own prior characterization.",
+  "field_mapping": [
+    {"source_column": "order_id", "canonical_field": "external_order_id", "classification": "Direct Mapping", "evidence": "GENERIC_COLUMN_MAP['external_order_id']='order_id', exact literal match."},
+    {"source_column": "user_id", "canonical_field": "(none)", "classification": "Ignored", "evidence": "No canonical field maps to 'user_id'. Real customer identity in this schema is derived only from customer_email (absent in this file) via resolve_customer_id() -- so Order.customer_id will be None for every row, unlike dataset_01."},
+    {"source_column": "product_id", "canonical_field": "(none -- NOT mapped to sku)", "classification": "Unsupported", "evidence": "GENERIC_COLUMN_MAP['sku']='sku' (exact literal only, no fuzzy fallback exists for sku per _FALLBACK_ROLE, ecommerce_ingestion.py:112-117) -- 'product_id' does not literal-match 'sku' and has no fallback path, so it resolves to None. No OrderItem row will be created for any row in this file (sku is required to write an OrderItem, ecommerce_ingestion.py:306)."},
+    {"source_column": "category", "canonical_field": "(none)", "classification": "Ignored", "evidence": "No canonical field for a product/order category exists in GENERIC_COLUMN_MAP."},
+    {"source_column": "price", "canonical_field": "(none directly -- see total_price)", "classification": "Ignored", "evidence": "GENERIC_COLUMN_MAP has no literal key matching 'price' for gross_revenue or unit_price (those map to 'gross_revenue'/'unit_price' literal names, neither present here). The 'amount' fuzzy-fallback role (used for both gross_revenue and unit_price) scans columns in dataframe order and returns the FIRST column whose name contains any amount-keyword -- 'price' is a candidate keyword, so this column would in principle match first, EXCEPT 'total_price' (a later column) is where the fallback actually resolves to, in practice; not fully disambiguated in this pass (both 'price' and 'total_price' contain the keyword 'price'/'total_price' from COLUMN_CANDIDATES['amount'] -- find_column returns the first column in df.columns order satisfying any candidate, and 'price' appears before 'total_price' in this file's column order, so both gross_revenue and unit_price roles would in fact resolve to 'price', not 'total_price' -- see the 'total_price' entry below for the corrected conclusion)."},
+    {"source_column": "qty", "canonical_field": "quantity", "classification": "Direct Mapping", "evidence": "GENERIC_COLUMN_MAP['quantity']='quantity' (literal, exact) does NOT match this file's column named 'qty' -- falls back to the 'qty' fuzzy role (COLUMN_CANDIDATES['qty'] includes 'qty' itself), which correctly resolves to this column."},
+    {"source_column": "total_price", "canonical_field": "gross_revenue AND unit_price (BOTH, via fallback ambiguity)", "classification": "Transformed / Unsupported-ambiguity", "evidence": "Corrected finding: since 'price' (an earlier column) already satisfies the 'amount' fallback role for BOTH gross_revenue and unit_price (both use role 'amount' per _FALLBACK_ROLE, ecommerce_ingestion.py:113,116, and _resolve_column returns the same first-matching column for any field sharing a role), both gross_revenue and unit_price will resolve to the SAME column, 'price' -- NOT 'total_price'. This means Order.gross_revenue would be populated from the PER-UNIT price column, not the true order total (total_price), silently understating gross_revenue for any row where qty>1. This is a real mapping defect specific to this file's column shape, not merely a documentation gap.",
+    "verified_by": "Confirmed 'price' column exists earlier in df.columns than 'total_price' (source column order: order_id, user_id, product_id, category, price, qty, total_price, order_date, country, customer_segment) -- find_column (app/utils/analyzer.py:101-108) iterates columns in this order and returns on first match, so 'price' wins for both fallback-eligible fields sharing the 'amount' role."},
+    {"source_column": "order_date", "canonical_field": "order_date", "classification": "Direct Mapping", "evidence": "GENERIC_COLUMN_MAP['order_date']='order_date', exact literal match. 0 unparseable dates observed (range 2022-01-01 to 2025-08-11)."},
+    {"source_column": "country", "canonical_field": "(none)", "classification": "Ignored", "evidence": "No canonical field for country/geography exists on Order or OrderItem."},
+    {"source_column": "customer_segment", "canonical_field": "(none)", "classification": "Ignored", "evidence": "No canonical field for a pre-computed customer segment exists -- RFM segmentation (rfm_segment_assignments table) is computed by the platform itself, not read from source data."}
+  ],
+  "fields_permanently_null_for_this_file": [
+    "sku (OrderItem never created for any row)",
+    "unit_cogs / Order.cogs (no source column, no fallback role)",
+    "customer_email / Order.customer_id (no source column)",
+    "original_currency (no source column -- falls back to the ingestion code's own hardcoded default 'NGN' for every row, per ecommerce_ingestion.py:289, NOT because this file's real currency is NGN, but because the field is entirely absent)",
+    "channel (no source column)",
+    "discount_amount, refund_amount, shipping_cost, processing_fees, allocated_ad_spend (no source columns)"
+  ],
+  "data_quality": {
+    "row_count": 10000,
+    "column_count": 10,
+    "duplicate_order_id_count": 0,
+    "malformed_prices": "None found -- 0 negative price values; total_price == price*qty for all 10,000 rows (0 mismatches, independently recomputed) -- confirms internal consistency of the source data itself, independent of the gross_revenue mapping-ambiguity finding above.",
+    "malformed_timestamps": "None found -- 0 unparseable order_date values.",
+    "malformed_currencies": "N/A -- no currency column exists in this file at all; every ingested row will silently receive the ingestion code's hardcoded 'NGN' default regardless of these orders' real currency/country (15 distinct countries present: Australia, Brazil, Canada, China, France, Germany, India, Italy, Japan, Mexico, Netherlands, South Africa, Spain, United Kingdom, United States -- none of which is Nigeria, making the NGN default clearly wrong for every single row in this file specifically).",
+    "missing_sku": "10,000 of 10,000 (100% -- column does not exist)",
+    "missing_customer_ids": "10,000 of 10,000 (100% -- no customer_email column exists, and user_id is not read)",
+    "missing_order_ids": 0,
+    "missing_quantities": 0,
+    "missing_prices": 0,
+    "missing_cogs": "10,000 of 10,000 (100% -- column does not exist; will correctly trigger the >20%-missing-COGS disabled-feature rule if ingested, since 100% > 20% threshold)",
+    "encoding_problems": "None observed.",
+    "orphan_records": "N/A -- single flat file.",
+    "unsupported_currencies": "N/A -- no currency data present at all (see malformed_currencies).",
+    "inconsistent_channel_names": "N/A -- no channel column exists.",
+    "invalid_return_data": "N/A -- no return-related columns exist."
+  },
+  "verdict": "PASS WITH ISSUES. Ingestible without crashing (order_date/quantity resolve correctly), and internally self-consistent (no malformed data within the file itself), but confirmed to have two real, code-level mapping problems specific to this file's column shape: (1) gross_revenue/unit_price both silently resolve to the per-unit 'price' column rather than the true order-level 'total_price' column, understating gross_revenue for every multi-quantity row; (2) every order will be tagged 'NGN' currency by the ingestion code's hardcoded default despite this file's orders spanning 15 non-Nigerian countries. Recommended for Prompt 2 strictly as a row-count/volume ingestion test, with both of these mapping issues documented as pre-known, expected findings -- not to be re-discovered as new issues in that prompt."
+}

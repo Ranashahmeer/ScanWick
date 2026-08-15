@@ -1,0 +1,111 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 1,
+  "prompt_name": "Dataset Inspection + Schema Mapping",
+  "sub_report": "dataset_discovery_and_triage",
+  "date": "2026-07-11",
+  "mode": "Read-only inspection. No source code, migration, dataset, or documentation file was modified. No database access, no ingestion, no DB writes. Investigation performed via direct code reading (app/models, app/services, app/routes, app/schemas, alembic/versions, docs/SYSTEM_DOCUMENTATION.md, Shakir_Build_Prompts.md, Shoaib_Build_Prompts.md, Scanwick_QA_Testing_Scripts.md) and read-only pandas inspection of every candidate CSV.",
+  "methodology_note": "Per this prompt's own instruction to not blindly trust the candidate list, every dataset under backend/datasets/ was enumerated (not just the 13 named candidates) and cross-checked against the repository's actual implementation before being classified below.",
+  "repository_evidence_summary": {
+    "models": "app/models/orders.py (Order), app/models/order_items.py (OrderItem), app/models/returns.py (Return), app/models/sku_inventory.py (SkuInventory, unpopulated by any ingestion path), app/models/rfm_segment_assignments.py, app/models/ad_kill_audit_log.py. No products/customers table exists anywhere in the repo.",
+    "ingestion_service": "app/services/ecommerce_ingestion.py -- 3 column maps (SHOPIFY_COLUMN_MAP, WOOCOMMERCE_COLUMN_MAP, GENERIC_COLUMN_MAP), all feeding one shared extract_canonical_rows()/write_canonical_rows() path. Only gross_revenue/order_date/quantity/unit_price canonical fields have a fuzzy-keyword fallback (via app/utils/analyzer.py::find_column/COLUMN_CANDIDATES) when a source's literal header isn't matched; sku/channel/customer_email/unit_cogs/unit_return_cost/processing_fees/allocated_ad_spend have no fallback at all and stay None if the literal header is absent.",
+    "olist_adapter": "app/services/ecommerce_olist_adapter.py EXISTS (flatten_olist_dataset + ingest_olist_dataset) and correctly targets GENERIC_COLUMN_MAP's shape -- but is never called from any route, Celery task, or the main ingestion service; its only callers are its own unit tests (tests/services/test_ecommerce_olist_adapter.py). Confirmed via whole-repo grep for 'ingest_olist_dataset|flatten_olist_dataset'.",
+    "upload_path": "No POST /api/v1/upload/csv (or any Ecommerce-specific ingestion-triggering) route exists anywhere under app/routes/ -- confirmed by reading every route file. The ingest_ecommerce_csv Celery task is defined but never dispatched (.delay()/.apply_async()) anywhere in app/ -- confirmed via grep; it is only invoked directly/synchronously by test files.",
+    "file_format_support": "app/services/upload_staging.py::read_upload_dataframe supports both CSV and XLSX (extension dispatch), consistent with the cross-cutting 'CSV convention also covers .xlsx' note in both Shakir_Build_Prompts.md:32 and Shoaib_Build_Prompts.md:31.",
+    "stale_documentation_note": "Scanwick_QA_Testing_Scripts.md (dated 2026-07-07) states the Olist set 'has no generic_csv/Shopify/WooCommerce column map of its own yet (would need one built...)' -- this is now inaccurate: ecommerce_olist_adapter.py (present in the repo now) implements exactly that. The adapter exists but remains unwired to any route, which is the QA-relevant fact going forward, not its absence."
+  },
+  "candidate_datasets_from_prompt": [
+    {
+      "dataset": "scanwick_test_ecommerce_orders.csv",
+      "actual_path": "backend/datasets/Ecommerce Order Dataset/scanwick_test_ecommerce_orders.csv",
+      "classification": "Primary Ecommerce ingestion test dataset",
+      "evidence": "Column headers (order_id, order_date, customer_id, customer_email, channel, sku, product_name, quantity, unit_price, gross_revenue, cogs, returns_amount, refund_amount, shipping_cost, processing_fee, ad_spend_allocated, discount_amount, return_carrier, return_reason, currency) match GENERIC_COLUMN_MAP's expected literal headers almost identically (13 of 14 GENERIC_COLUMN_MAP source-column names present verbatim). Must be ingested with source=generic_csv, not shopify_csv/woocommerce_csv (confirmed: none of Shopify's/WooCommerce's literal headers are present in this file at all).",
+      "verdict": "Use for Prompt 2, source=generic_csv."
+    },
+    {
+      "dataset": "ecommerce_orders_10k_updated.csv",
+      "actual_path": "backend/datasets/Ecommerce Order Dataset/ecommerce_orders_10k_updated.csv",
+      "classification": "Volume/row-count Ecommerce ingestion test dataset -- NOT a SKU/COGS/currency fidelity test",
+      "evidence": "Columns are order_id, user_id, product_id, category, price, qty, total_price, order_date, country, customer_segment -- confirmed via direct inspection: NO sku, cogs, customer_email, currency, or channel columns exist in this file at all. Under GENERIC_COLUMN_MAP, external_order_id/order_date/quantity resolve via literal or fuzzy match; gross_revenue has no literal 'gross_revenue' column but resolves via the amount fallback role to 'total_price' (first amount-keyword column in df order); sku/unit_cogs/customer_email/original_currency/channel/discount_amount/refund_amount/shipping_cost/processing_fees/allocated_ad_spend all resolve to None (no matching literal or fallback role) for every row.",
+      "verdict": "Use for Prompt 2, source=generic_csv, but scope expectations to row-count/ingestion-volume only -- every order will be written with no OrderItem row (no sku means no line item), no COGS, no currency conversion signal (falls back to default NGN), and status derived purely from refund_amount which is always None here, so every order will be forced to OrderStatus.fulfilled."
+    },
+    {
+      "dataset": "product-supplier.csv",
+      "actual_path": "backend/datasets/archive (19)/product-supplier.csv",
+      "classification": "Reference/supplier metadata only -- NOT an ingestible transactional dataset",
+      "evidence": "Columns confirmed: Product ID, Product Line, Product Category, Product Group, Product Name, Supplier Country, Supplier Name, Supplier ID. No cost, price, COGS, or any monetary column exists at all despite the filename's implication -- confirmed by direct inspection of all 8 columns.",
+      "verdict": "Do NOT use for ingestion testing in Prompt 2 -- has no order_id/order_date/gross_revenue and cannot populate any Order/OrderItem field. Excluded, consistent with Scanwick_QA_Testing_Scripts.md's own prior note."
+    },
+    {
+      "dataset": "archive (19)/orders.csv",
+      "actual_path": "backend/datasets/archive (19)/orders.csv",
+      "classification": "Reference dataset only (per-unit cost column of interest) -- NOT currently ingestible in a correct/meaningful way",
+      "evidence": "185,013 rows, columns: Customer ID, Customer Status, Date Order was placed, Delivery Date, Order ID, Product ID, Quantity Ordered, Total Retail Price for This Order, Cost Price Per Unit. 0 duplicate Order IDs, 0 negative Cost Price Per Unit, no currency column, dates in 'DD-Mon-YY' format. Traced the actual field resolution if this file were fed through GENERIC_COLUMN_MAP: order_date resolves via the fuzzy 'date' fallback to 'Date Order was placed' (correct); quantity resolves via the fuzzy 'qty' fallback to 'Quantity Ordered' (correct); BUT gross_revenue AND unit_price BOTH resolve via the shared 'amount' fallback role to the SAME first-matching column, 'Total Retail Price for This Order' (an order-level total, not a real unit price) -- meaning if ingested, unit_price would be silently set equal to the whole order's total price, not a per-unit figure. 'Cost Price Per Unit' -- the one column that would genuinely solve the COGS-availability gap -- has NO fallback role at all (unit_cogs is only resolved via a literal map match, and none of the 3 existing maps have a literal header matching this file's column names), so it would never be picked up even if this file were ingested. sku/external_order_id/channel/customer_email also have no literal match for this file's headers and no fallback role, so no OrderItem row would ever be written and no COGS would ever be captured.",
+      "verdict": "Do NOT use for ingestion testing in Prompt 2 as-is -- confirmed via code-level field-resolution tracing (not assumption) that attempting to ingest this file today would silently produce an incorrect unit_price (= order total) and would NOT actually pick up the real per-unit cost data despite that column's presence. This corrects Scanwick_QA_Testing_Scripts.md's characterization of 'Cost Price Per Unit' as merely 'currently unused' -- it is currently unusable without a code change (no unit_cogs fallback role, no matching literal map), not simply unreferenced."
+    },
+    {
+      "dataset": "olist_orders_dataset.csv + olist_order_items_dataset.csv + olist_order_payments_dataset.csv + olist_customers_dataset.csv + olist_products_dataset.csv + olist_sellers_dataset.csv + olist_geolocation_dataset.csv + olist_order_reviews_dataset.csv + product_category_name_translation.csv",
+      "actual_path": "backend/datasets/archive (18)/olist_*.csv (all 9 files present)",
+      "classification": "Real multi-table relational Ecommerce dataset -- HAS a purpose-built adapter (ecommerce_olist_adapter.py) but that adapter is unwired to any route/task",
+      "evidence": "See full olist_multi_table result file and root-cause detail below.",
+      "verdict": "Usable for Prompt 2 ONLY via direct function calls to flatten_olist_dataset()/ingest_olist_dataset() (the same pattern this adapter's own tests already use) -- not via any HTTP endpoint or Celery task, since none exists. This should be tested and reported as such, not worked around by inventing a route that doesn't exist."
+    }
+  ],
+  "additional_datasets_discovered_beyond_the_prompts_candidate_list": [
+    {
+      "dataset": "diversified_ecommerce_dataset.csv",
+      "actual_path": "backend/datasets/archive (20)/diversified_ecommerce_dataset.csv",
+      "classification": "Excluded -- product catalog, not a transactional dataset",
+      "evidence": "1,000,000 rows (200,000 sampled for schema check). Columns: Product ID, Product Name, Category, Price, Discount, Tax Rate, Stock Level, Supplier ID, Customer Age Group, Customer Location, Customer Gender, Shipping Cost, Shipping Method, Return Rate, Seasonality, Popularity Index. No order_id, order_date, or customer_id column exists at all -- cannot be mapped onto orders/order_items regardless of ingestion source, confirmed by direct inspection of every column.",
+      "verdict": "Excluded from all Ecommerce QA prompts. Already flagged as excluded in Scanwick_QA_Testing_Scripts.md prior to this prompt; independently re-confirmed here via direct column inspection rather than trusting that prior note."
+    },
+    {
+      "dataset": "df_Orders.csv / df_OrderItems.csv / df_Products.csv (test and train subfolders)",
+      "actual_path": "backend/datasets/Ecommerce Order Dataset/test/ and .../train/",
+      "classification": "Excluded -- redundant train/test-split subset of the Olist set's own columns",
+      "evidence": "test/df_Orders.csv (38,280 rows): order_id, customer_id, order_purchase_timestamp, order_approved_at -- 4 of Olist's own 8 orders columns. train/df_Orders.csv (89,317 rows) additionally has order_status/order_delivered_timestamp/order_estimated_delivery_date -- still a strict subset of olist_orders_dataset.csv's real columns. df_OrderItems.csv/df_Products.csv are likewise column subsets of olist_order_items_dataset.csv/olist_products_dataset.csv. No mention of this dataset anywhere in app/ (confirmed via grep for df_Orders/df_OrderItems/df_Products -- zero code references).",
+      "verdict": "Excluded -- testing both this and the full Olist set would be redundant, per the same reasoning already recorded in Scanwick_QA_Testing_Scripts.md:465-467. No code references this dataset at all."
+    },
+    {
+      "dataset": "archive (24)/products.csv and archive (25)/products.csv",
+      "actual_path": "backend/datasets/archive (24)/products.csv, backend/datasets/archive (25)/products.csv",
+      "classification": "Not an Ecommerce dataset -- belongs to the Sales vertical's CRM dataset",
+      "evidence": "Both are byte-identical 8-row files (product, series, sales_price) sitting alongside accounts.csv/sales_pipeline.csv/sales_teams.csv/metadata.csv (or data_dictionary.csv) in the same two archive folders -- a CRM/sales-pipeline product catalog, not a transactional Ecommerce order dataset. No app/ code references either archive (24) or archive (25) in an Ecommerce context; Scanwick_QA_Testing_Scripts.md's own references to these two folders (lines 625-686) are exclusively in the Sales Analyzer QA section.",
+      "verdict": "Not applicable to Ecommerce QA. Out of scope for this analyzer entirely."
+    }
+  ],
+  "structural_consistency_across_ecommerce_datasets": {
+    "canonical_structure_followers": ["scanwick_test_ecommerce_orders.csv (near-identity match to GENERIC_COLUMN_MAP)"],
+    "requires_transformation_only": ["ecommerce_orders_10k_updated.csv (partial GENERIC_COLUMN_MAP match, missing sku/cogs/customer_email/currency/channel -- ingests as a degraded, order-only, no-line-item, no-COGS dataset)"],
+    "requires_flattening_before_ingestion": ["olist 9-file set (requires the join/flatten step already implemented in ecommerce_olist_adapter.py, but that step is not automatically invoked anywhere)"],
+    "cannot_currently_be_ingested_meaningfully": ["archive (19)/orders.csv (would silently mis-map unit_price to an order-level total and would never pick up its own Cost Price Per Unit column)", "product-supplier.csv (no transactional fields at all)"],
+    "not_applicable_excluded": ["diversified_ecommerce_dataset.csv", "df_Orders.csv/df_OrderItems.csv/df_Products.csv (test/train)", "archive (24)/(25) products.csv (Sales vertical, not Ecommerce)"]
+  },
+  "datasets_recommended_for_prompt_2": [
+    "scanwick_test_ecommerce_orders.csv (source=generic_csv)",
+    "ecommerce_orders_10k_updated.csv (source=generic_csv, volume/row-count scope only)",
+    "Olist 9-file set (via direct flatten_olist_dataset()/ingest_olist_dataset() function calls -- no route/task exists to call it any other way)"
+  ],
+  "datasets_recommended_against_for_prompt_2": [
+    "product-supplier.csv -- no transactional fields",
+    "archive (19)/orders.csv -- would silently produce incorrect unit_price data if ingested through any current source path",
+    "diversified_ecommerce_dataset.csv -- not a transactional dataset",
+    "df_Orders.csv/df_OrderItems.csv/df_Products.csv (test/train) -- redundant subset of Olist",
+    "archive (24)/(25)/products.csv -- Sales vertical dataset, not Ecommerce"
+  ],
+  "repository_gaps_discovered": [
+    "No HTTP route or Celery dispatch path exists to trigger Ecommerce CSV/XLSX ingestion at all -- ingest_ecommerce_csv is defined but never called via .delay()/.apply_async() anywhere in app/, and no POST /api/v1/upload/csv-equivalent route exists. This is a build-completeness gap that will directly affect how Prompt 2 (Ingestion Testing) must be executed (via direct function calls, matching this project's own test suite's pattern, not via a real HTTP upload flow).",
+    "The Olist adapter (ecommerce_olist_adapter.py) exists and is correctly implemented against GENERIC_COLUMN_MAP, but is never wired to any route or ingestion trigger -- confirmed via whole-repo grep.",
+    "Scanwick_QA_Testing_Scripts.md's characterization of the Olist set ('has no generic_csv/Shopify/WooCommerce column map of its own yet') is stale relative to the current repository state -- the adapter now exists; only the wiring is missing."
+  ],
+  "ingestion_blockers": [
+    "None of the 3 datasets recommended for Prompt 2 are blocked from ingestion at the data-quality level (all 3 are clean or degrade gracefully). The blocker is purely architectural: no HTTP/Celery trigger path exists for any Ecommerce source, so Prompt 2 must invoke the ingestion functions directly in Python, exactly as this repository's own test suite already does."
+  ],
+  "implementation_gaps": [
+    "No products/customers table exists anywhere in the schema -- sku is a free-text string with no catalog/normalization, and customer identity is a deterministic email-hash UUID, not a real customer entity.",
+    "unit_cogs has no fuzzy-fallback role at all -- only a literal header match across 3 fixed maps can ever populate it; any dataset with a real cost-per-unit column under a different header name (e.g. archive (19)/orders.csv's 'Cost Price Per Unit') will never have it picked up without a code change.",
+    "The Olist adapter discards Olist's real order_status column entirely -- flatten_olist_dataset's output has no status-bearing column, so every Olist order that would be ingested through this adapter falls through _resolve_generic_status's refund_amount check (which is also never populated, since refund_amount isn't in the flattened output either) and is unconditionally assigned OrderStatus.fulfilled, regardless of its real status. Quantified: 2,963 of 99,441 real Olist orders (2.98%) have a non-'delivered' real status (625 canceled, 609 unavailable, 314 invoiced, 301 processing, 1,107 shipped, 5 created, 2 approved) -- all of which would be mislabeled 'fulfilled' if this adapter were ever actually invoked. This is a genuine data-fidelity gap in the adapter's design, not a bug in the shared ingestion path (the adapter simply never attempted to carry this field over)."
+  ],
+  "can_proceed_to_prompt_2": true,
+  "prompt_2_scope_note": "Prompt 2 should test: (1) scanwick_test_ecommerce_orders.csv and (2) ecommerce_orders_10k_updated.csv via the standard ingest_dataframe()/ingest_ecommerce_csv path with source=generic_csv, both invoked via direct function calls since no HTTP/Celery trigger exists; and (3) the Olist 9-file set via direct calls to flatten_olist_dataset()/ingest_olist_dataset(), documenting the order_status data-loss finding above as an expected, evidenced consequence of the adapter's design, not a new bug to be 're-discovered' independently in that prompt."
+}

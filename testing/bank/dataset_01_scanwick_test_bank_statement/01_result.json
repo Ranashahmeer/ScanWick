@@ -1,0 +1,45 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 1,
+  "prompt_name": "Dataset Inspection + Schema Mapping",
+  "dataset_name": "scanwick_test_bank_statement.csv",
+  "dataset_path": "backend/datasets/bank dataset/scanwick_test_bank_statement.csv",
+  "status": "pass",
+  "summary": "Schema maps cleanly onto the canonical Bank model (accounts.py, bank_transactions.py). The previously-known _CREDIT_KEYWORDS/'cr' substring bug that silently zeroed every credit-side transaction in this file is confirmed fixed: extract_canonical_bank_rows() now produces 0 rejected rows and 0 zero-amount rows, versus 227 wrongly-zeroed credit rows before the fix.",
+  "key_findings": [
+    "All 5 source columns (date, description, debit, credit, balance) map to a canonical field, directly or via the debit/credit-netting transform.",
+    "No currency column present; original_currency defaults to 'NGN' for all rows (low severity, handled gracefully).",
+    "No account_number column present; account_number_hash falls back to a hash of the upload_id rather than a real account number (low severity, handled gracefully, but limits account-matching/dedup across uploads).",
+    "One row (row 158, 'LARGE TRANSFER - UNKNOWN BENEFICIARY') has both debit and credit populated at once; the ingestion code nets it via credit - abs(debit) without crashing, but it is the one row where the signed amount is not a literal read of either column (medium severity, flagged for manual check in Prompt 2).",
+    "No duplicate column headers.",
+    "No encoding issues found in narration text.",
+    "Credit-column keyword-collision bug (fixed prior to this run) confirmed resolved for this file: 0 zero-amount rows now vs. 227 before the fix."
+  ],
+  "metrics": {
+    "row_count": 465,
+    "column_count": 5,
+    "source_columns": ["date", "description", "debit", "credit", "balance"],
+    "date_range": { "start": "2025-06-01", "end": "2026-05-28" },
+    "unparseable_dates": 0,
+    "debit_null_count": 227,
+    "credit_null_count": 237,
+    "balance_null_count": 0,
+    "rejected_rows": 0,
+    "zero_amount_rows_after_fix": 0,
+    "zero_amount_rows_before_fix": 227,
+    "ambiguous_debit_credit_rows": 1,
+    "duplicate_headers": false,
+    "encoding_issues": false,
+    "has_currency_column": false,
+    "has_account_number_column": false,
+    "has_value_date_column": false,
+    "has_channel_column": false,
+    "has_transaction_reference_column": false,
+    "channel_distinct_values": null
+  },
+  "artifacts": [
+    "01_dataset_inspection.md",
+    "result_note.md"
+  ],
+  "verdict": "PASS. Bank Test Prompt 2 (Ingestion) can proceed immediately for this file. Follow-ups carried into Prompt 2: confirm the one ambiguous debit+credit row (row 158) nets to a sensible signed amount after real ingestion; confirm account_number_hash falls back correctly (not a crash) through the full ingest_bank_dataframe path."
+}

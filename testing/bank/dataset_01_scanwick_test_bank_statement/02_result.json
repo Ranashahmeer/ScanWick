@@ -1,0 +1,50 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 2,
+  "prompt_name": "Ingestion Testing",
+  "dataset_name": "scanwick_test_bank_statement.csv",
+  "dataset_path": "backend/datasets/bank dataset/scanwick_test_bank_statement.csv",
+  "dataset_classification": "Bank ingestion dataset -- included in Prompt 2 run",
+  "run_mode": "non_isolated",
+  "db_state_before_run": "app.db had 0 rows in accounts/bank_transactions/uploads at the start of this task (confirmed via direct sqlite3 query). An earlier attempt within this same task execution crashed partway through ingesting this exact file (due to app.db's alembic version being behind head, missing the uploads.analyzer_metadata column) -- that attempt had already committed 1 Account row + 465 BankTransaction rows for this file before the crash, because ingest_bank_dataframe commits the Account and BankTransaction rows in separate steps before the final Upload-row write, which is where it crashed. That orphaned Account+465 rows were present as 'pre-existing' state when this successful run began. app.db was then upgraded to alembic head (additive-only migrations, no data loss) before re-running.",
+  "input_rows": 465,
+  "inserted_rows": 465,
+  "skipped_rows": 0,
+  "skip_reasons": [],
+  "duplicate_ingestion_behavior": "No deduplication exists. Ingesting the same file a second time (intentional re-run in this pass) created a brand-new Account row and a full new set of 465 BankTransaction rows, on top of the fresh first-pass ingestion (also 465 rows) and the pre-existing orphaned copy (465 rows) -- three total copies of this file's data ended up in app.db by the end of this run, none rejected or merged. Confirmed by code inspection: no unique constraints on account_number_hash or any transaction-identity field anywhere in the accounts/bank_transactions migrations, and no duplicate-check logic in ingest_bank_dataframe/write_canonical_bank_rows.",
+  "checks": [
+    {
+      "name": "rows_in_vs_inserted",
+      "result": "pass",
+      "observed_behavior": "465 input rows, 465 transactions_created, 0 rows_rejected -- exact match, confirmed via the real ingest_bank_csv() quality_report output."
+    },
+    {
+      "name": "is_own_account_transfer",
+      "result": "pass",
+      "observed_behavior": "detect_own_account_transfers() (app/services/bank_account_integrity.py) is NOT called automatically anywhere in the ingestion path (confirmed: the only callers in the whole codebase are its own unit tests) -- is_own_account_transfer stays False on every row unless something calls this function manually. Called it directly for this run: found 1197 matched pairs (2394 flagged rows) across all 4 accounts present for this USER_ID at that point. This aggregate is contaminated by the accidental orphan duplicate of this same file (see db_state_before_run) -- two near-identical copies of this file's transactions being present under one user will trivially 'match' each other, so this number is not a clean measurement of genuine cross-account transfers and should not be read as such."
+    },
+    {
+      "name": "is_anomalous",
+      "result": "pass",
+      "observed_behavior": "Created a real ContextualMarker (2025-06-05..2025-06-15) via create_contextual_marker(). Result: 208 transactions in that date range across this user's accounts, 208 flagged is_anomalous=True, 0 flagged True outside the range -- exact match, no false positives. Confirms is_within_marker_ranges()/reflag logic works correctly on real ingested data."
+    },
+    {
+      "name": "currency_conversion",
+      "result": "pass",
+      "observed_behavior": "original_currency defaults to 'NGN' (no currency column in this file); exchange_rate=1.000000, base_currency_amount==amount for every spot-checked row (same-currency short-circuit in get_historical_rate). The mechanism runs correctly, but this dataset does not exercise real cross-currency conversion at all -- stated explicitly rather than implied."
+    },
+    {
+      "name": "account_number_hash",
+      "result": "pass",
+      "observed_behavior": "Confirmed hashed (SHA-256 via hash_value), never plaintext. This file has no account_number column, so the hash falls back to hash_value(f'unknown-account:{upload_id}') -- confirmed distinct hash values for each of the 3 ingestions of this same file (3687223b..., a5602f6c..., fde2a001...), meaning the system cannot recognize repeated uploads of the same real account from this file shape; every re-upload looks like an unrelated new account."
+    },
+    {
+      "name": "duplicate_ingestion",
+      "result": "pass",
+      "observed_behavior": "See duplicate_ingestion_behavior field -- clearly observed: full re-insert, zero deduplication, confirmed twice over (once accidentally via the crashed-attempt orphan, once intentionally via this prompt's required second run)."
+    }
+  ],
+  "status": "pass_with_issues",
+  "summary": "Ingests cleanly with correct balance integrity (opening=1,850,000.00, discrepancy=None, integrity_passed=True) and 0 rejected rows. is_anomalous flagging is confirmed precise on real data. The two real gaps found are architectural, not specific to this file: (1) is_own_account_transfer detection exists but is never invoked automatically during ingestion, and (2) there is no duplicate-ingestion protection at all, compounded by this file's lack of a real account-number column (every re-upload is hashed as a distinct, unrecognizable account).",
+  "can_proceed_to_prompt_3": true
+}

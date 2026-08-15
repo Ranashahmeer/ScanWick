@@ -1,0 +1,58 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 4,
+  "prompt_name": "Diagnostics Endpoint Testing",
+  "dataset_name": "scanwick_test_ecommerce_orders.csv",
+  "merchant_id_tested": "11111111-1111-1111-1111-111111111111",
+  "merchant_note": "1,964 orders/order_items (2 duplicate copies of 982 real orders, per E2-2). RBAC role reused from Prompt 3 (E3-3 workaround).",
+  "diagnostics_discovery": {
+    "method": "Read app/routes/ecommerce.py in full (already done in Prompt 3) and re-confirmed the 3 diagnostic-prefixed routes; read app/services/ecommerce_diagnostics.py and app/services/ecommerce_returns.py in full for their backing implementations.",
+    "endpoints": [
+      {"name": "Profit Leaks", "route": "GET /api/v1/ecommerce/diagnostic/profit-leaks", "handler": "get_profit_leaks (app/routes/ecommerce.py:127)", "service": "compute_profit_leaks / get_profit_leaks_response (app/services/ecommerce_diagnostics.py:39,113)"},
+      {"name": "Dead Stock", "route": "GET /api/v1/ecommerce/diagnostic/dead-stock", "handler": "get_dead_stock (app/routes/ecommerce.py:144)", "service": "compute_dead_stock / get_dead_stock_response (app/services/ecommerce_diagnostics.py:164,227)"},
+      {"name": "Return Forensics", "route": "GET /api/v1/ecommerce/diagnostic/return-forensics", "handler": "get_return_forensics (app/routes/ecommerce.py:161)", "service": "compute_return_forensics / get_return_forensics_response (app/services/ecommerce_returns.py:26,60)"}
+    ],
+    "build_completeness": "All 3 specification-named diagnostics (profit-leaks, dead-stock, return-forensics) are implemented and route-registered -- not a build-completeness gap."
+  },
+  "response_envelope_verification": {"all_3_endpoints": "Confirmed exact {success, data, meta:{...}} shape.", "schema_compliant": true},
+  "profit_leaks_verification": {
+    "endpoint_returned": {"total_leaking_skus": 8, "total_margin_at_risk": -29528900.0, "disabled_features": []},
+    "independently_recomputed_via_direct_compute_profit_leaks_call": {"total_leaking_skus": 8},
+    "match": true,
+    "note": "total_leaking_skus=8 matches Prompt 3's dashboard/summary profit_leak_count=8 cross-check exactly, and matches sku-matrix's total quadrant count (1+3+3+1=8) -- this file has exactly 8 distinct SKUs, all of which currently show a negative net_margin.",
+    "leak_breakdown_and_primary_leak_driver_finding": {
+      "sample_sku": "LMP-014",
+      "endpoint_values": {"gross_revenue": 16840000.0, "net_margin": -17750500.0, "leak_breakdown": {"returns_cost": 1120000.0, "shipping_cost": 1010400.0, "discount_cost": 276000.0, "processing_fees": 303120.0, "ad_spend": 592404.0}, "primary_leak_driver": "returns_cost"},
+      "independent_sql_verification": {"sum_unit_price_x_qty": 16840000, "sum_unit_cogs_x_qty": 32088000, "sum_unit_shipping_cost_x_qty": 2292000, "stored_unit_net_margin_sum": -17750500},
+      "finding": "unit_net_margin's real formula (price - cogs - shipping - return_cost, confirmed in Prompt 2) never includes refund_amount/discount_amount/processing_fees/allocated_ad_spend at all -- yet leak_breakdown displays 4 of its 5 fields (returns_cost=order.refund_amount, discount_cost, processing_fees, ad_spend) as if they explain the margin shortfall, when none of them are actually inputs to unit_net_margin's formula. The true dominant real cost, unit_cogs (32,088,000, ~93% of this SKU's total real costs), is completely absent from leak_breakdown and can never be selected as primary_leak_driver. The endpoint selected 'returns_cost' (1,120,000, a real refund total but causally unrelated to this SKU's margin formula) as the primary driver, when COGS -- not shown at all -- is the actual overwhelming cause. NEW issue E4-2 (High), logged once in QA_ISSUES.md.",
+      "cross_reference": "E2-1 (unit_net_margin omits processing_fees/allocated_ad_spend) is the root cause of the formula gap that made this discoverable; E4-2 is a distinct, new finding about leak_breakdown's own disconnected field set, not a duplicate of E2-1."
+    },
+    "unit_return_cost_persistence_finding": {
+      "finding": "Confirmed via direct SQL: 0 of 1,964 order_items for this merchant have a non-null unit_return_cost, even though 982 of them (the second Prompt-2 ingestion pass) demonstrably had a real 500-per-unit return cost applied to their margin (unit_net_margin exactly 500xquantity lower than their first-pass counterparts, per Prompt 2's own data). Root-caused to a variable-shadowing bug at write_canonical_rows (app/services/ecommerce_ingestion.py:332): the persisted item_fields dict re-reads row['unit_return_cost'] (the original, pre-resolution source value) instead of the local, already-resolved unit_return_cost variable used moments earlier to compute unit_net_margin. NEW issue E4-1 (High), logged once in QA_ISSUES.md."
+    }
+  },
+  "dead_stock_verification": {
+    "endpoint_returned": {"dead_sku_count": 0, "total_capital_at_risk": 0.0, "dead_skus": []},
+    "independently_recomputed_via_direct_compute_dead_stock_call": {"dead_sku_count": 0},
+    "match": true,
+    "note": "0 dead SKUs is correct: this file's real order dates run through 2026-05-26, only ~46 days before the actual test-execution date (2026-07-11), under the 60-day DEAD_STOCK_THRESHOLD_DAYS threshold for every SKU checked. No disabled_features mechanism exists for this endpoint at all (confirmed via code reading) -- not applicable to this merchant since there is genuinely no threshold-crossing case to report either way."
+  },
+  "return_forensics_verification": {
+    "endpoint_returned": {"return_patterns": []},
+    "finding": "CONFIRMS E2-3's predicted downstream impact directly and completely: the returns table has 0 rows for this merchant (982 real orders, several with real return_carrier/return_reason source columns per Prompt 1, none of which were ever written to the Return model), so compute_return_forensics has no data to group and correctly returns an empty pattern list. Not a new defect -- direct, expected confirmation of E2-3.",
+    "high_risk_threshold_note": "RETURN_FORENSICS_HIGH_RISK_THRESHOLD_PCT (30%) could not be exercised with this or any dataset, since no real Return rows exist anywhere in the repository's current data -- a direct consequence of E2-3, not a separate finding."
+  },
+  "thin_data_and_threshold_findings": {
+    "profit_leaks_threshold": "20% COGS-missing threshold (COGS_MISSING_DISABLE_THRESHOLD_PCT, shared with sku-matrix/ingestion) -- not triggered for this merchant (0% COGS missing).",
+    "dead_stock_threshold": "No disabled_features/minimum-data mechanism exists at all -- confirmed via full code reading, not assumed.",
+    "return_forensics_threshold": "No disabled_features/minimum-data mechanism exists at all -- confirmed via full code reading, not assumed."
+  },
+  "issue_propagation_summary": {
+    "propagates": ["E2-1 (via profit-leaks, see E4-2)", "E2-2 (all figures reflect duplicated data)", "E2-3 (return-forensics confirmed empty)"],
+    "does_not_apply": ["E1-3 (no diagnostic references Order.status)", "E1-4 (no diagnostic references Order.gross_revenue directly)", "E1-5 (no diagnostic references Order.original_currency)", "E3-2 (not applicable -- this merchant's data isn't old enough to trigger dead-stock)"],
+    "new_issues_this_prompt": ["E4-1", "E4-2", "E4-3 (applies to Olist dataset, not this one)"]
+  },
+  "status": "pass_with_issues",
+  "summary": "All 3 diagnostic endpoints are implemented, schema-compliant, and RBAC-gated. profit-leaks' total_leaking_skus/total_margin_at_risk and dead-stock's dead_sku_count both matched independent recomputation exactly. Two significant new defects discovered via close inspection of profit-leaks' explanatory fields: E4-1 (unit_return_cost persists the wrong, unresolved value due to a variable-shadowing bug) and E4-2 (leak_breakdown/primary_leak_driver omits COGS -- the true dominant cost -- and includes 4 fields with no actual causal connection to the margin being explained). return-forensics confirmed empty, directly proving E2-3's predicted impact.",
+  "can_proceed_to_prompt_5": true
+}

@@ -1,0 +1,92 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 3,
+  "prompt_name": "Dashboard Endpoint Testing",
+  "dataset_name": "scanwick_test_ecommerce_orders.csv",
+  "merchant_id_tested": "11111111-1111-1111-1111-111111111111",
+  "merchant_note": "This merchant holds 1,964 orders/order_items -- 2 full duplicate copies of the same 982 real orders, per Prompt 2's intentional duplicate-ingestion test (E2-2). All figures below reflect that duplicated state, as expected.",
+  "endpoint_discovery": {
+    "method": "Read app/routes/ecommerce.py in full and grepped for every @router.get/post decorator -- confirmed 3 endpoints registered under the /dashboard/ path prefix (not assumed from the specification).",
+    "endpoints": [
+      {"name": "Dashboard Summary", "route": "GET /api/v1/ecommerce/dashboard/summary", "handler": "get_dashboard_summary (app/routes/ecommerce.py:87)", "service": "compute_dashboard_summary (app/services/ecommerce_dashboard.py:27)"},
+      {"name": "Dashboard Revenue", "route": "GET /api/v1/ecommerce/dashboard/revenue", "handler": "get_dashboard_revenue (app/routes/ecommerce.py:108)", "service": "compute_dashboard_revenue (app/services/ecommerce_revenue.py:103)"},
+      {"name": "Dashboard SKU Matrix", "route": "GET /api/v1/ecommerce/dashboard/sku-matrix", "handler": "get_sku_matrix (app/routes/ecommerce.py:178)", "service": "compute_sku_matrix / get_sku_matrix_response (app/services/ecommerce_sku_matrix.py:12,105)"}
+    ],
+    "note": "All 3 match the specification's example names exactly (dashboard/summary, dashboard/revenue, dashboard/sku-matrix) -- confirmed via repository reading, not assumed."
+  },
+  "rbac_and_access_setup": {
+    "finding": "The pre-existing RBAC row for this merchant (user_id=1, vertical=ecommerce, role=owner) was confirmed UNUSABLE via a direct get_merchant_role() call returning None, despite appearing present under a raw SQL SELECT -- same root cause as Bank QA's B3-4 (36-character dashed UUID string vs. the ORM's 32-character hex form). New issue E3-3 logged. Fixed by inserting one additional, ORM-consistent UserMerchantRole row (same user_id/merchant_id/vertical, role=owner) -- the original malformed row was left untouched.",
+    "rbac_denial_confirmed": "A separate, never-granted merchant_id correctly returned 403 FORBIDDEN.",
+    "invalid_input_confirmed": "merchant_id='not-a-uuid' correctly returned 400 INVALID_MERCHANT_ID rather than a crash."
+  },
+  "response_envelope_verification": {
+    "all_3_endpoints": "Confirmed exact match to {success, data, meta:{missing_fields, disabled_features, analysis_run_id}} in every call for this merchant, including the explicit-date-range call.",
+    "schema_compliant": true
+  },
+  "dashboard_summary_verification": {
+    "endpoint_returned": {
+      "period": {"start": "2025-07-01", "end": "2026-05-26"},
+      "gross_revenue": 69182000.0,
+      "net_revenue": 56991914.0,
+      "total_orders": 1964,
+      "avg_order_value": 35225.05,
+      "profit_leak_count": 8,
+      "dead_stock_count": 0
+    },
+    "independently_recomputed": {
+      "gross_revenue": "69182000.0000",
+      "net_revenue": "56991914.0000",
+      "total_orders": 1964,
+      "avg_order_value": 35225.05,
+      "profit_leak_count_via_direct_compute_profit_leaks_call": 8,
+      "dead_stock_count_via_direct_compute_dead_stock_call": 0
+    },
+    "match": true,
+    "explicit_date_range_test": {
+      "query": "date_from=2026-04-01, date_to=2026-04-30",
+      "endpoint_returned": {"gross_revenue": 6648000.0, "net_revenue": 5394742.0, "total_orders": 170, "change_pct_gross": 25.5, "change_pct_net": 26.3},
+      "independent_verification": "Recomputed via direct SQL for the exact (non-calendar-aligned) equal-length previous-period window the code actually uses (period_length=30 days, so previous period = 2026-03-02 to 2026-03-31, NOT the full calendar month of March): current gross=6,648,000, previous gross=5,296,000, change_pct=(6648000-5296000)/5296000*100=25.53% -- matches the endpoint's returned 25.5% exactly.",
+      "match": true
+    }
+  },
+  "dashboard_revenue_verification": {
+    "endpoint_returned": {
+      "gross_revenue": 69182000.0,
+      "net_revenue": 56991914.0,
+      "gap": 12190086.0,
+      "gap_breakdown": {"returns": 2006000.0, "discounts": 1209000.0, "shipping": 5223600.0, "processing": 1245276.0, "ad_spend": 2506210.0},
+      "monthly_trend_month_count": 11
+    },
+    "independently_recomputed": {
+      "gross_revenue": "69182000.0000",
+      "net_revenue": "56991914.0000",
+      "gap_breakdown": {"returns": "2006000.0000", "discounts": "1209000.0000", "shipping": "5223600.0000", "processing": "1245276.0000", "ad_spend": "2506210.0000"},
+      "monthly_trend_first_3_months": [
+        {"month": "2025-07", "gross": "7444000.0000", "net": "6151454.0000"},
+        {"month": "2025-08", "gross": "6342000.0000", "net": "5229142.0000"},
+        {"month": "2025-09", "gross": "7460000.0000", "net": "6257196.0000"}
+      ],
+      "monthly_trend_month_count": 11
+    },
+    "match": true,
+    "refund_handling_check": "124 of 1,964 orders have status='refunded' (confirmed via direct SQL), totaling gross_revenue=4,192,000 and refund_amount=2,006,000 (partial refunds, ~47.9% of their own gross on average -- exactly matching the gap_breakdown's 'returns' component of 2,006,000). Confirmed the code applies NO status-based exclusion at all (fetch_orders_in_range/aggregate_order_list never reference Order.status) -- gross_revenue correctly still counts the full original sale amount for refunded orders, and net_revenue correctly subtracts only the real refunded amount. This produces the economically correct net effect without needing a status filter -- confirmed correct, not a defect. No order in this dataset can ever have status='cancelled' (the generic-source status resolver, _resolve_generic_status, only ever returns 'fulfilled' or 'refunded' -- confirmed in Prompt 1/2), so cancelled-order exclusion could not be tested with this dataset."
+  },
+  "dashboard_sku_matrix_verification": {
+    "endpoint_returned": {"median_revenue": 7221000.0, "median_margin_pct": -17.2, "quadrant_counts": {"stars": 1, "cash_cows": 3, "question_marks": 3, "dogs": 1}, "unclassified_sku_count": 0},
+    "independently_recomputed_via_direct_compute_sku_matrix_call": {"median_revenue": 7221000.0, "median_margin_pct": -17.2, "quadrant_counts": {"stars": 1, "cash_cows": 3, "question_marks": 3, "dogs": 1}, "unclassified_sku_count": 0},
+    "match": true,
+    "negative_margin_finding": "All quadrants show deeply negative margin_pct (e.g. -105.4% for SKU LMP-014). Traced to real, correctly-persisted per-item economics for this dataset (unit_price vs. unit_cogs+shipping+return_cost across many real orders sharing the same SKU) -- NOT a sku-matrix calculation defect (confirmed via exact match to independent recomputation). These figures ARE, however, inflated toward less-negative than the true fully-costed value due to E2-1 (unit_net_margin omits processing_fees/allocated_ad_spend) -- referenced, not re-logged as a new issue -- and are computed over the merchant's full, duplicated (E2-2) order_items set, so absolute revenue/margin totals per SKU are roughly double a single, non-duplicated ingestion's true figures."
+  },
+  "cogs_coverage_at_dashboard_layer": {
+    "total_line_items": 1964,
+    "missing_count": 0,
+    "missing_pct": 0.0,
+    "disabled": false,
+    "note": "0% COGS missing for this merchant -- matches Prompt 1/2's finding that this file has full COGS coverage. profit_leak_detector/sku_matrix correctly NOT disabled."
+  },
+  "issues_found": ["E3-3 (RBAC scaffolding format, resolved via workaround)"],
+  "issues_referenced_not_duplicated": ["E2-1", "E2-2", "E2-4 (via new E3-1, logged once in QA_ISSUES.md, applies to the 10k dataset not this one)"],
+  "status": "pass_with_issues",
+  "summary": "All 3 dashboard endpoints (summary, revenue, sku-matrix) return correct, schema-compliant, fully-verified output for this merchant -- 0 arithmetic mismatches across every metric checked, including an explicit date-range query and its change_pct calculation. Refund handling confirmed economically correct (no status-based exclusion needed, since the gross/net split already nets out refunds correctly). All observed data anomalies (duplicated order counts, deeply negative margins, an inflated profit_leak_count baseline) trace directly to already-known, referenced issues (E2-1, E2-2), not new dashboard-layer defects.",
+  "can_proceed_to_prompt_4": true
+}

@@ -1,0 +1,33 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 3,
+  "prompt_name": "Dashboard Endpoint Testing",
+  "endpoint_name": "Bank Dashboard Summary",
+  "route": "/api/v1/bank/dashboard/summary",
+  "method": "GET",
+  "handler_function": "get_dashboard_summary (app/routes/bank.py:112), delegates to compute_dashboard_summary (app/services/bank_dashboard.py:41)",
+  "dataset_used": "scanwick_bank_wallet_clean.csv",
+  "account_id_tested": "b70312cb-343a-43f4-be5b-1bf96ad51baa",
+  "response_schema_valid": true,
+  "response_envelope_valid": true,
+  "envelope_evidence": "app/schemas/envelope.py:success_response -- confirmed exact shape.",
+  "metrics_verified": ["inflows", "outflows", "balance.opening_balance", "balance.closing_balance", "credit_debit_split.credit_count", "credit_debit_split.debit_count", "top_payees_by_outflow", "top_income_sources", "monthly_cashflow_trend"],
+  "recomputed_values": {
+    "inflows": "61433215.47",
+    "outflows": "63127382.94",
+    "eligible_row_count": 6889,
+    "recompute_method": "Direct SQL against bank_transactions WHERE account_id=... AND is_anomalous=0 AND is_own_account_transfer=0."
+  },
+  "endpoint_values": {
+    "inflows": "61433215.47",
+    "outflows": "63127382.94"
+  },
+  "mismatches": [],
+  "issues_found": [
+    "MEDIUM (smaller-scale version of dataset_02's critical finding): 240 of 5,662 debits (~4.2%) in this account are flagged is_own_account_transfer=True due to the same cross-account contamination described in dataset_02's 03_result.json. Smaller impact here because this account has far more total transactions, but the same root cause applies -- this account's true outflow figure, if the contamination were removed, would be somewhat higher than reported.",
+    "Prompt 2's balance-integrity failure (discrepancy 800,624.14, the worst of the three files) does not directly appear in this dashboard endpoint's output at all -- dashboard/summary reads Account.opening_balance/closing_balance directly (0.0/0.0 as stored) and does not itself flag or surface the integrity mismatch. A user looking only at this dashboard would have no visibility into the fact that the recorded balances don't reconcile against the transaction history -- worth considering whether that reconciliation status should surface here or only in a dedicated diagnostic."
+  ],
+  "status": "pass_with_issues",
+  "summary": "Dashboard arithmetic verified exactly correct via independent SQL recomputation. Same transfer-flag contamination issue as dataset_02 applies here at a smaller scale (~4.2% of debits vs. 100%). Also noted: the known balance-integrity failure from Prompt 2 is invisible from this endpoint's output alone.",
+  "can_proceed_to_prompt_4": true
+}

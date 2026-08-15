@@ -1,0 +1,62 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 2,
+  "prompt_name": "Ingestion Testing",
+  "dataset_name": "Olist multi-table set (olist_orders_dataset.csv + olist_order_items_dataset.csv + olist_order_payments_dataset.csv)",
+  "dataset_path": "backend/datasets/archive (18)/olist_*.csv",
+  "ingestion_source": "generic_csv (via app/services/ecommerce_olist_adapter.py::flatten_olist_dataset() + ingest_olist_dataset())",
+  "merchant_id_used": "33333333-3333-3333-3333-333333333333",
+  "run_mode": "non_isolated",
+  "invocation_method": "Direct function calls to flatten_olist_dataset() + ingest_olist_dataset(), per E1-2 (adapter exists but is unwired to any route/task -- no adapter was invented, the existing one was used exactly as its own unit tests already do). Full, real 9-file-referenced-but-3-file-consumed dataset used (99,441 orders, 112,650 order_items, 103,886 payments read in full, not a truncated sample) -- a genuine stress-test volume, not a synthetic reduction.",
+  "db_state_before_this_dataset": "0 orders/order_items for this specific merchant_id (fresh merchant).",
+  "ingestion_result": {
+    "flattened_row_count": 112650,
+    "orders_created": 112650,
+    "items_created": 112650,
+    "rows_rejected": 0,
+    "return_cost_defaulted_count": 112650,
+    "quality_report_computed_separately": {
+      "note": "ingest_olist_dataset()/ingest_dataframe() do not themselves call compute_ecommerce_quality_report() (that function is only invoked by the Celery-task wrapper, ingest_ecommerce_csv, which the Olist adapter does not use). Computed independently, in this prompt, by calling compute_ecommerce_quality_report() directly on the same flattened+extracted canonical rows actually written, to verify the COGS-missing-warning mechanism against this real dataset.",
+      "rows_parsed": 112650,
+      "rows_rejected": 0,
+      "date_range_start": "2016-09-04",
+      "date_range_end": "2018-09-03",
+      "warnings": [
+        {
+          "field": "cogs",
+          "severity": "high",
+          "message": "COGS is missing for 112650 of 112650 line items (100.0%). This exceeds the 20% threshold. Unit margin and profit leak features are disabled.",
+          "features_disabled": ["unit_margin", "profit_leak_detector"]
+        }
+      ]
+    }
+  },
+  "join_and_flatten_verification": {
+    "join_keys_confirmed": "order_items.order_id -> orders.order_id (many-to-one), payments.order_id -> orders.order_id (many-to-one, first-by-payment_sequential taken as primary payment method) -- confirmed via the 112,650 flattened rows exactly matching order_items.csv's own row count (1 flattened row per Olist order_item, as designed).",
+    "orphan_check": "0 order_items with no parent order, 0 payments with no parent order (confirmed in Prompt 1's data-quality check, re-confirmed structurally here since all 112,650 order_items rows successfully flattened and ingested with 0 rejections)."
+  },
+  "canonical_mapping_verification": {
+    "external_order_id": "Confirmed transformed as designed: order_id + '-' + order_item_id (e.g. sample row: '00010242fe8c5a6d1ba2dd792cb16214-1').",
+    "order_date": "Confirmed mapped from orders.order_purchase_timestamp via the join, 0 rejected rows (0 null order_date after join).",
+    "gross_revenue / unit_price": "Confirmed both mapped from order_items.price (e.g. sample row: 58.9000 for both) -- correct for this dataset since Olist's price is genuinely a real per-line-item figure, not a mapping defect (unlike the 10k file's case).",
+    "sku": "Confirmed mapped from order_items.product_id (e.g. sample row sku='4244733e06e7ecb4970a6e2683c13e61') -- all 112,650 rows produced an OrderItem (1:1 orders-to-items ratio, as designed by the adapter's 1-item-per-order simplification).",
+    "currency": "CONFIRMED: all 112,650 rows show original_currency='BRL' (the adapter's hardcoded, real, documented constant for Olist -- not a fabricated default, unlike the 10k file's NGN situation). exchange_rate_at_order=1.000000 for all rows (same-currency shortcut, since this merchant has no MerchantSettings configured, so effective_base_currency falls back to original_currency='BRL', matching itself).",
+    "quantity": "Confirmed hardcoded to 1 for all rows, correctly reflecting Olist's real per-unit-per-row order_items structure (not fabricated).",
+    "status": "CONFIRMED, via real ingested data, Prompt 1's predicted finding E1-3: all 112,650 ingested rows show status='fulfilled', regardless of the source orders' real order_status (96,478 of 99,441 real Olist orders are genuinely 'delivered,' but 2,963 have a different real status -- all of which are also written as 'fulfilled' since order_status/refund_amount are never carried into the flattened output). This is a direct empirical confirmation of E1-3, not a new issue.",
+    "customer_id": "Order.customer_id is None for all rows -- confirmed, Olist has no email field and the adapter never populates customer_email."
+  },
+  "cogs_and_margin_applicability": {
+    "finding": "unit_cogs/Order.cogs/net_margin are None for all 112,650 rows -- confirmed, matching Prompt 1's prediction that Olist has no cost data anywhere in the 3 files the adapter reads.",
+    "quality_report_warning": "CONFIRMS the COGS-missing warning mechanism works correctly when a dataset has real line-item (SKU-bearing) rows: fired at exactly 100.0% missing, features_disabled=['unit_margin','profit_leak_detector'] -- contrast with dataset_02 (10k file), where the identical underlying condition (100% COGS-missing) produces NO warning at all because that file has 0 SKU-bearing rows to compute a percentage over (see E2-4)."
+  },
+  "return_cost_verification": {
+    "finding": "return_cost_defaulted_count=112,650 (100%) -- confirmed correct: this merchant has no MerchantSettings row (deliberately not configured for this merchant, to keep the Merchant-Default-tier test isolated to the primary dataset's merchant only), and Olist has no unit_return_cost source data at all (confirmed absent from flatten_olist_dataset()'s output columns), so both the SKU-Override and Merchant-Default tiers are unavailable for this dataset -- the Zero tier correctly and expectedly fires for all 112,650 rows."
+  },
+  "database_integrity": {
+    "row_count_verification": "orders table grew from 13,146 (after primary+10k ingestions) to 125,796 after this ingestion -- exactly +112,650, matching orders_created. order_items table grew from 2,946 to 115,596 -- exactly +112,650, matching items_created.",
+    "orphan_order_items_check": "1:1 orders-to-items match for this merchant (112,650 of each) -- no orphan risk observed."
+  },
+  "status": "pass_with_issues",
+  "summary": "The full, real, 112,650-row Olist order_items set (joined against its own orders and payments files) was ingested cleanly (0 rejected) via the existing, unwired ecommerce_olist_adapter.py, using it exactly as designed -- no adapter was invented or modified. This confirms Prompt 1's Olist assessment was accurate in every respect: the join/flatten logic works correctly and referentially (0 orphans), the COGS-missing warning correctly fires at 100% (contrast with the 10k file's blind spot, E2-4), and the previously-flagged order_status data-loss (E1-3) was empirically confirmed -- all 112,650 rows show status='fulfilled' regardless of their real Olist status.",
+  "can_proceed_to_prompt_3": true
+}

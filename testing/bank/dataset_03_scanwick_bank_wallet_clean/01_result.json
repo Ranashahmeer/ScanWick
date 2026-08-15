@@ -1,0 +1,48 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 1,
+  "prompt_name": "Dataset Inspection + Schema Mapping",
+  "dataset_name": "scanwick_bank_wallet_clean.csv",
+  "dataset_path": "backend/datasets/bank dataset/scanwick_bank_wallet_clean.csv",
+  "status": "pass",
+  "summary": "Cleanest of the three Bank datasets by data completeness (no null balances, no ambiguous debit/credit rows) and the only one with real channel diversity. Confirmed via direct function execution: 0 rejected rows, 0 zero-amount rows post-fix (previously 2,496 credit-side rows were silently zeroed by the now-fixed _CREDIT_KEYWORDS bug).",
+  "key_findings": [
+    "8 source columns present, identical shape to scanwick_bank_savings_clean.csv: trans_date, value_date, description, debit, credit, balance, channel, transaction_reference.",
+    "balance is fully populated (0 nulls) -- best of the three files for balance-integrity precision.",
+    "No rows with both debit and credit populated (0 ambiguous rows, unlike dataset_01's one ambiguous row).",
+    "channel has real diversity (4 distinct values: Mobile, WEB, USSD, POS) -- the file to use later for payment-mode/channel diagnostics.",
+    "value_date, channel, and transaction_reference are real, clean columns not currently captured by ingestion (low severity, same gap as dataset_02).",
+    "At 8,158 rows this is the largest of the three real Bank files -- reasonable as the volume test case for Prompt 2.",
+    "No duplicate column headers; no duplicate transaction_reference values.",
+    "No encoding issues found.",
+    "Credit-column keyword-collision bug (fixed prior to this run) confirmed resolved for this file: 0 zero-amount rows now vs. 2,496 before the fix -- the largest single fix-impact of the three files."
+  ],
+  "metrics": {
+    "row_count": 8158,
+    "column_count": 8,
+    "source_columns": ["trans_date", "value_date", "description", "debit", "credit", "balance", "channel", "transaction_reference"],
+    "date_range": { "start": "2023-01-04", "end": "2026-03-26" },
+    "unparseable_dates": 0,
+    "debit_null_count": 2496,
+    "credit_null_count": 5662,
+    "balance_null_count": 0,
+    "rejected_rows": 0,
+    "zero_amount_rows_after_fix": 0,
+    "zero_amount_rows_before_fix": 2496,
+    "ambiguous_debit_credit_rows": 0,
+    "duplicate_headers": false,
+    "duplicate_transaction_reference_count": 0,
+    "encoding_issues": false,
+    "has_currency_column": false,
+    "has_account_number_column": false,
+    "has_value_date_column": true,
+    "has_channel_column": true,
+    "has_transaction_reference_column": true,
+    "channel_distinct_values": 4
+  },
+  "artifacts": [
+    "01_dataset_inspection.md",
+    "result_note.md"
+  ],
+  "verdict": "PASS. Bank Test Prompt 2 (Ingestion) can proceed immediately. No follow-ups beyond the shared value_date/channel/transaction_reference non-capture note already logged against dataset_02."
+}

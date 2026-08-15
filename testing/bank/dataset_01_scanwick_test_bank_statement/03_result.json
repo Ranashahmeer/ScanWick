@@ -1,0 +1,38 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 3,
+  "prompt_name": "Dashboard Endpoint Testing",
+  "endpoint_name": "Bank Dashboard Summary",
+  "route": "/api/v1/bank/dashboard/summary",
+  "method": "GET",
+  "handler_function": "get_dashboard_summary (app/routes/bank.py:112), delegates to compute_dashboard_summary (app/services/bank_dashboard.py:41)",
+  "dataset_used": "scanwick_test_bank_statement.csv",
+  "account_id_tested": "a8b7128c-fd10-42f9-90df-b7585cc6973a",
+  "note_on_other_accounts_for_this_dataset": "Two other accounts also hold this exact file's data due to non-isolation: 9ae163fc-6f69-42ef-b550-33784051ae41 (orphaned partial-commit from an earlier crashed Prompt-2 attempt) and 889e6553-23d0-4411-97d8-f15f85d22e46 (Prompt 2's intentional duplicate-ingestion test run). All three were called in this run (full output in 03_dashboard_run_output.txt); this JSON reports the canonical, cleanly-produced account (a8b7128c). The other two return different numbers than each other and than this one despite being the same source file -- see issues_found.",
+  "response_schema_valid": true,
+  "response_envelope_valid": true,
+  "envelope_evidence": "app/schemas/envelope.py:success_response -- confirmed the real response has exactly {success, data, meta:{missing_fields, disabled_features, analysis_run_id}}, matching the shared envelope function's return shape exactly.",
+  "metrics_verified": ["inflows", "outflows", "balance.opening_balance", "balance.closing_balance", "balance.net_change", "credit_debit_split.credit_count", "credit_debit_split.debit_count", "top_payees_by_outflow", "top_income_sources", "monthly_cashflow_trend"],
+  "recomputed_values": {
+    "inflows": "29955327.79",
+    "outflows": "37248435.63",
+    "credit_count": 209,
+    "debit_count": 217,
+    "eligible_row_count": 426,
+    "recompute_method": "Direct SQL against bank_transactions WHERE account_id=... AND is_anomalous=0 AND is_own_account_transfer=0, summed by sign in Python Decimal."
+  },
+  "endpoint_values": {
+    "inflows": "29955327.79",
+    "outflows": "37248435.63",
+    "credit_count": 209,
+    "debit_count": 217
+  },
+  "mismatches": [],
+  "issues_found": [
+    "CRITICAL (shared across dataset_01/02/03, detailed fully in dataset_02's 03_result.json): is_own_account_transfer flags are contaminated by Prompt 2's accidental duplicate ingestion and the greedy cross-account matcher, producing inconsistent dashboard results for what is genuinely the same source file. This account's own numbers (29,955,327.79 / 37,248,435.63) differ from the other two copies of this exact file: the orphan copy (9ae163fc) returns identical numbers to this one (both were present when detect_own_account_transfers ran, both got the same 24 rows flagged), but the third copy (889e6553, ingested AFTER that detection pass ran) returns 33,555,327.79 / 40,848,435.63 -- a 3,600,000 difference on both sides, traced to a real recurring 'Transfer to/from Own Account' pattern (12 occurrences x 300,000) present in this file's own data, which is excluded in the first two copies (because it happened to cross-match between the two duplicate copies) but NOT excluded in the third (ingested after the one-time detection pass already ran). The dashboard's arithmetic is verified correct in all three cases; the inconsistency is entirely in the upstream flag data.",
+    "The one ambiguous debit+credit row from Prompt 1 (row 158, 'Large Transfer - Unknown Beneficiary') appears correctly as a single top-payee entry (total_outflow=4,025,622.01, occurrence_count=1) in all three copies -- confirms it nets to one coherent debit as Prompt 2 predicted, not a crash or double-count."
+  ],
+  "status": "pass_with_issues",
+  "summary": "compute_dashboard_summary's arithmetic is verified exactly correct via independent SQL recomputation (inflows, outflows, credit/debit counts all match to the cent). The envelope shape is correct. The real issue is entirely upstream: is_own_account_transfer flag contamination (from Prompt 2's non-isolation) makes the same source file report different dashboard totals depending on which duplicate copy/account is queried -- a data-order-dependent inconsistency, not a dashboard calculation bug.",
+  "can_proceed_to_prompt_4": true
+}

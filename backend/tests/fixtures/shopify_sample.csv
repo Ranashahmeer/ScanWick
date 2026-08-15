@@ -1,0 +1,4 @@
+Name,Email,Financial Status,Fulfillment Status,Currency,Total,Discount Amount,Refunded Amount,Shipping,Created at,Lineitem sku,Lineitem quantity,Lineitem price,Source Name
+#1001,a@example.com,paid,fulfilled,NGN,2300.81,0.00,0.00,150.00,2026-01-15 10:00:00 +0100,SKU-0042,2,1075.40,web
+#1002,b@example.com,paid,unfulfilled,NGN,4200.00,200.00,0.00,150.00,2026-01-16 11:30:00 +0100,SKU-0015,1,4200.00,pos
+#1003,c@example.com,refunded,fulfilled,NGN,1500.00,0.00,1500.00,0.00,2026-01-17 09:15:00 +0100,SKU-0091,3,500.00,web

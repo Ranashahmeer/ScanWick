@@ -1,0 +1,50 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 2,
+  "prompt_name": "Ingestion Testing",
+  "dataset_name": "ecommerce_orders_10k_updated.csv",
+  "dataset_path": "backend/datasets/Ecommerce Order Dataset/ecommerce_orders_10k_updated.csv",
+  "ingestion_source": "generic_csv (OrderDataSource.generic_csv)",
+  "merchant_id_used": "22222222-2222-2222-2222-222222222222",
+  "run_mode": "non_isolated",
+  "invocation_method": "Direct function calls (extract_canonical_rows/write_canonical_rows/compute_ecommerce_quality_report), per E1-1 (no HTTP/Celery trigger path exists).",
+  "db_state_before_this_dataset": "0 orders/order_items for this specific merchant_id (fresh merchant). Pre-existing, unrelated orphaned Ecommerce data already present elsewhere in app.db (documented in dataset_01's 02_result.json) does not overlap this merchant_id.",
+  "ingestion_result": {
+    "input_rows": 10000,
+    "orders_created": 10000,
+    "items_created": 0,
+    "rows_rejected": 0,
+    "skip_reasons": [],
+    "return_cost_defaulted_count": 0,
+    "quality_report": {
+      "rows_parsed": 10000,
+      "rows_rejected": 0,
+      "date_range_start": "2022-01-01",
+      "date_range_end": "2025-08-11",
+      "days_of_history": 1319,
+      "warnings": []
+    }
+  },
+  "canonical_mapping_verification": {
+    "external_order_id": "Direct mapping from order_id, confirmed correct.",
+    "order_date": "Direct mapping, 0 unparseable dates, matches Prompt 1's finding.",
+    "gross_revenue": "CONFIRMED, via real ingested data, Prompt 1's predicted finding E1-4: sample order (external_order_id='100000', source price=93.11, qty=2, source total_price=186.22) was written with Order.gross_revenue=93.1100 -- the per-unit 'price' column, not the true order total 'total_price'. This is a direct empirical confirmation of E1-4, not a new issue.",
+    "sku": "0 of 10,000 rows produced an OrderItem (items_created=0) -- confirmed, this file has no sku column at all (matches Prompt 1's finding exactly). No line-item-level data (unit_cogs, unit_return_cost, unit_shipping_cost, unit_net_margin) exists for this dataset as a structural consequence.",
+    "customer_id": "Order.customer_id is None for all 10,000 rows -- confirmed, this file has no customer_email column (only user_id, which is never read by the ingestion code per Prompt 1's field mapping).",
+    "currency": "CONFIRMED, via real ingested data, Prompt 1's predicted finding E1-5: all 10,000 rows show original_currency='NGN' despite the file's own country column spanning 15 non-Nigerian countries (Australia, Brazil, Canada, China, France, Germany, India, Italy, Japan, Mexico, Netherlands, South Africa, Spain, United Kingdom, United States). This is a direct empirical confirmation of E1-5, not a new issue.",
+    "quantity": "Correctly mapped via the 'qty' fuzzy-fallback role to this file's own 'qty' column."
+  },
+  "cogs_and_margin_applicability": {
+    "finding": "Structurally inapplicable for this dataset. Since sku is never present, no OrderItem is ever created (confirmed: items_created=0), so the item_fields code path inside write_canonical_rows (which is where unit_cogs/order_cogs/net_margin are computed) is never entered for any row -- Order.cogs and Order.net_margin are None for all 10,000 orders, confirmed via sample inspection.",
+    "return_cost_applicability": "Also structurally inapplicable -- resolve_unit_return_cost is only called inside the same sku-gated code block, so it is never invoked for this dataset. return_cost_defaulted_count=0 reflects 'never attempted,' not 'successfully resolved to a real value.'"
+  },
+  "quality_report_warning_gap": {
+    "finding": "The COGS-missing warning did NOT fire for this dataset (warnings: []), despite 100% of this file's rows structurally lacking any COGS/margin data whatsoever. Traced to compute_ecommerce_quality_report's own logic: cogs_missing_pct is computed only over line_items (rows where sku is truthy); since total_line_items=0 for this file, the 'if total_line_items > 0' guard prevents the warning from ever firing. This is a correct divide-by-zero guard, not a bug, but it means this specific dataset receives zero explicit signal that COGS/margin data is completely absent -- unlike the Olist dataset (see dataset_03's result), which DOES trigger this same warning correctly because it has a real sku column for every row.",
+    "conclusion": "NEW issue E2-4 (Low severity) -- logged in testing/ecommerce/QA_ISSUES.md."
+  },
+  "duplicate_ingestion_test": "Not re-run for this specific file in this prompt (the duplicate-ingestion test was performed on scanwick_test_ecommerce_orders.csv only, per this run's design, matching the equivalent Bank QA pattern of testing duplication once on the primary file). Based on code inspection (no unique constraints, no dedup logic anywhere in write_canonical_rows), the same full-reinsert behavior confirmed for the primary file (E2-2) would be expected here too, but this specific claim is inferred from code and the primary file's confirmed behavior, not independently re-observed for this file in this prompt.",
+  "database_integrity": "10,000 orders confirmed for this merchant_id via direct count; 0 orphan order_items risk since 0 were created.",
+  "status": "pass_with_issues",
+  "summary": "10,000/10,000 rows ingested cleanly (0 rejected), confirming Prompt 1's row-count/volume-test characterization exactly. Both of Prompt 1's predicted mapping defects for this specific file (E1-4: gross_revenue/unit_price mis-mapping; E1-5: hardcoded NGN currency) were empirically confirmed via real ingested data, not rediscovered as new issues. COGS/margin/return-cost logic is structurally never exercised for this dataset (no sku column), and this prompt found one new, low-severity related gap: the COGS-missing quality-report warning never fires for this specific dataset shape, despite 100% real COGS-data absence (E2-4).",
+  "can_proceed_to_prompt_3": true
+}

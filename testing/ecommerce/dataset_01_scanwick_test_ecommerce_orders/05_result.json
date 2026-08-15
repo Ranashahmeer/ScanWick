@@ -1,0 +1,57 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 5,
+  "prompt_name": "Predictive Model Testing",
+  "dataset_name": "scanwick_test_ecommerce_orders.csv",
+  "merchant_id_tested": "11111111-1111-1111-1111-111111111111",
+  "merchant_note": "1,964 orders/order_items (2 duplicate copies of 982 real orders, per E2-2). RBAC role reused from Prompt 3.",
+  "predictive_discovery": {
+    "endpoints": [
+      {"name": "Inventory Forecast (Holt-Winters)", "route": "GET /api/v1/ecommerce/predictive/inventory-forecast", "handler": "get_inventory_forecast (app/routes/ecommerce.py:195)", "service": "compute_inventory_forecast / compute_holt_winters_forecast (app/services/ecommerce_inventory_forecast.py:104, app/services/ecommerce_holt_winters.py:53)"},
+      {"name": "RFM Segmentation", "route": "GET /api/v1/ecommerce/predictive/rfm-segments", "handler": "get_rfm_segments (app/routes/ecommerce.py:212)", "service": "compute_rfm_segments / get_rfm_segments_response (app/services/ecommerce_rfm.py:76, app/services/ecommerce_rfm_endpoint.py:39)"},
+      {"name": "Churn Risk", "route": "GET /api/v1/ecommerce/predictive/churn-risk", "handler": "get_churn_risk (app/routes/ecommerce.py:229)", "service": "compute_churn_risk (app/services/ecommerce_churn.py:57)"},
+      {"name": "Ad Kill Switch", "route": "POST /api/v1/ecommerce/predictive/ad-kill-switch/configure, POST .../pause", "handler": "post_configure_ad_kill_switch / post_pause_campaign (app/routes/ecommerce.py:263,283)", "service": "configure_ad_kill_switch / manually_pause_campaign / evaluate_and_autopause_underperforming_campaigns (app/services/ecommerce_ad_kill_switch.py)"}
+    ],
+    "build_completeness": "All 4 specification-named predictive features are implemented -- not a build-completeness gap. Ad Kill Switch's automatic evaluation is genuinely wired to a real Celery beat schedule (daily 01:00 UTC, app/tasks.py + celery_app.py), unlike E1-1's ingestion-trigger gap -- a positive finding."
+  },
+  "response_envelope_verification": {"all_get_endpoints": "Confirmed exact {success, data, meta:{...}} shape.", "post_endpoints": "Confirmed exact {success, data, meta:{...}} shape (analysis_run_id null for both POSTs, which don't call record_analysis_run -- consistent with their write-only, non-analytical nature)."},
+  "inventory_forecast_verification": {
+    "endpoint_returned": {"forecasts_count": 8, "skus_excluded_insufficient_history": [], "minimum_weeks_required": 8, "all_8_skus_predicted_stockout_date": null},
+    "finding": "All 8 real SKUs have 47-48 weeks of real history (well above the 8-week minimum, 0 excluded), but ALL show predicted_stockout_date=null with 'Current stock data not available' -- because sku_inventory has 0 rows (confirmed, no ingestion path populates it). NEW issue E5-1 (Medium), logged once in QA_ISSUES.md.",
+    "underlying_model_verification": "Direct call to compute_holt_winters_forecast confirmed the underlying model DOES produce real, directionally-sane forecasts for all 8 SKUs -- e.g. SKU CSH-088's last 8 real weekly quantities (16,18,28,2,10,10,18,10) forecast to (13.3,19.8,16.2,18.0) for the next 4 weeks, consistent with the historical range, no runaway extrapolation. Spot-checked all 8 SKUs; all forecasts fell within a reasonable range of their own recent historical variability.",
+    "weeks_of_history_cross_check": "Independently reconstructed each SKU's continuous weekly series via _weekly_quantity_series and confirmed weeks_of_history counts (47 or 48) matched the endpoint/direct-call output exactly for all 8 SKUs."
+  },
+  "rfm_segments_verification": {
+    "first_call_returned": {"clusters_produced": 6, "unidentified_order_count": 0, "segment_sizes": {"Champions": 19, "Loyal Customers": 39, "At Risk": 40, "Hibernating": 44, "Lost": 33, "Promising": 63, "New Customers": 0}, "segment_movement_since_last_run": []},
+    "second_call_returned": {"clusters_produced": 6, "segment_sizes": {"Champions": 19, "Loyal Customers": 39, "At Risk": 40, "Hibernating": 44, "Lost": 33, "Promising": 63, "New Customers": 0}, "segment_movement_since_last_run_count": 0},
+    "determinism_confirmed": "2 real, consecutive API calls (random_state=42) produced byte-identical segment assignments and 0 movement entries -- confirmed deterministic.",
+    "uniqueness_confirmed": "Sum of all 7 segment sizes = 19+39+40+44+33+63+0 = 238, matching the merchant's real distinct customer_id count exactly (confirmed via SQL) -- every customer appears in exactly one segment, no duplicates, no omissions.",
+    "new_customers_zero_finding": {
+      "finding": "The 'New Customers' segment is 0 for this merchant. Independently confirmed via direct SQL: all 238 distinct customers have an EVEN order frequency (2,4,6,...,36 -- zero odd frequencies observed), proving every real customer's true order count was doubled by E2-2's duplicate ingestion. 56 of 238 customers (23.5%) show frequency=2 and are misclassified as repeat customers (eligible for clustering) instead of New Customers (which requires frequency==1 exactly) -- a direct, deterministic, now precisely-quantified downstream impact of E2-2, referenced not duplicated.",
+      "cross_reference": "E2-2"
+    }
+  },
+  "churn_risk_verification": {
+    "endpoint_returned": {"threshold_pct": 70.0, "window_days": 60, "insufficient_data": false, "unidentified_order_count": 0, "high_risk_customers_count": 114},
+    "kaplan_meier_edge_case_verification": {
+      "sampled_customers": [{"customer_id": "c7dec596-aefb-513c-af96-316c71de8a90", "days_since_last_order": 338.5, "churn_probability_pct": 100.0}, {"customer_id": "eead0593-348c-5391-9d18-2b9d8901975b", "days_since_last_order": 354.5, "churn_probability_pct": 100.0}, {"customer_id": "9354c75c-6b74-5a3f-a057-688675bbdb9f", "days_since_last_order": 362.5, "churn_probability_pct": 100.0}],
+      "independent_verification": "Direct SQL confirmed the maximum real observed historical inter-purchase gap for this merchant is 278.0 days. All 3 sampled customers' days_since_last_order (338.5/354.5/362.5) exceed this maximum, correctly triggering the code's documented 'already waited longer than any historical precedent' rule (churn_probability_pct=100.0 via the s_now<=0 special case) -- confirmed correct, not a defect."
+    }
+  },
+  "ad_kill_switch_verification": {
+    "configure_result": {"mode": "auto", "threshold_days": 30, "status": 200},
+    "manual_pause_result": {"campaign": "Shopify", "threshold_days": 30, "triggered_by": "manual", "status": 200},
+    "automatic_evaluation_result": {"reference_date": "2026-05-26", "merchants_evaluated": 1, "campaigns_paused": 3},
+    "independent_verification": "Direct SQL over the exact 30-day window (2026-04-26 to 2026-05-26) the code uses confirmed all 3 of this merchant's real channels had allocated_ad_spend > 0 AND summed net_margin < 0: Instagram (ad_spend=106110, net_margin=-678300), Jumia (ad_spend=26512, net_margin=-453500), Shopify (ad_spend=62120, net_margin=-480600) -- exactly matching campaigns_paused=3, no channels missed or incorrectly included.",
+    "e2_1_propagation_note": "Order.net_margin (used for this decision) omits processing_fees/allocated_ad_spend at ingestion time (E2-1), making it systematically less negative than the true, fully-costed figure. Not a concrete misfire here (all 3 channels were unambiguously negative even under the incomplete formula), but a real, evidence-backed risk that a channel with a small true loss could escape auto-pausing under the current formula -- referenced, not a new issue."
+  },
+  "issue_propagation_summary": {
+    "propagates": ["E2-2 (RFM New Customers segment, quantified: 56/238 customers misclassified)", "E2-1 (ad-kill-switch decision logic, theoretical under-triggering risk)"],
+    "does_not_apply": ["E1-3", "E1-4", "E1-5", "E2-3", "E2-4/E3-1", "E4-1", "E4-2", "E4-3"],
+    "related_pattern_noted": ["E3-2 (same wall-clock-relative design pattern present in churn-risk's 'now', did not cause a confusing result for this merchant)"],
+    "new_issues_this_prompt": ["E5-1", "E5-2 (observed on the Olist dataset, not this one)"]
+  },
+  "status": "pass_with_issues",
+  "summary": "All 4 predictive features are implemented and correctly computed for this merchant. RFM clustering is deterministic, exhaustive, and non-duplicating (238/238 customers in exactly one segment). Churn-risk's Kaplan-Meier edge case behaves exactly as documented. Ad-kill-switch's automatic evaluation correctly identified all 3 real underperforming channels, independently verified via SQL. The Holt-Winters model itself produces sane forecasts, but E5-1 confirms this is never visible in the API response due to the always-empty sku_inventory table. E2-2's duplicate ingestion was precisely quantified to zero out the 'New Customers' RFM segment for this merchant.",
+  "can_proceed_to_prompt_6": true
+}

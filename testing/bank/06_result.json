@@ -1,0 +1,142 @@
+{
+  "analyzer": "bank",
+  "prompt_number": 6,
+  "prompt_name": "AI Layer Testing",
+  "date": "2026-07-10",
+  "mode": "non-isolated -- run against the project's real, current dev DB (backend/app.db), populated by Prompts 2-5, no new ingestion, no reset. Real Gemini API calls (GEMINI_API_KEY configured), bounded to 3 accounts x 2 endpoints (6 calls) plus one additional safe in-memory zero-transaction call pair, to keep external API exposure minimal.",
+  "ai_endpoints": [
+    {
+      "name": "Lender Brief",
+      "route": "GET /api/v1/bank/ai/lender-brief",
+      "handler": "get_lender_brief (app/routes/bank.py:283)",
+      "service": "get_lender_brief_response (app/services/bank_lender_brief.py:115)"
+    },
+    {
+      "name": "Financial Health Playbook",
+      "route": "GET /api/v1/bank/ai/financial-health-playbook",
+      "handler": "get_financial_health_playbook (app/routes/bank.py:305)",
+      "service": "get_financial_health_playbook_response (app/services/bank_playbook.py:17)"
+    }
+  ],
+  "implemented_endpoints": 2,
+  "missing_endpoints": [],
+  "endpoint_discovery_note": "Confirmed via whole-codebase grep of every @router.get/post across app/routes/*.py that these are the only 2 Bank-prefixed AI endpoints; Ecommerce and Sales have their own separate /ai/playbook endpoints, out of scope for this prompt.",
+  "response_schema_valid": true,
+  "response_envelope_valid": true,
+  "schema_validation": {
+    "recommendations_checked": 20,
+    "recommendations_source": "18 from 3 real accounts' financial-health-playbook (5 primary + 5 savings + 8 wallet) + 2 from the safe in-memory zero-transaction sparse test; lender-brief's own recommendations never generated in any tested case (see B6-1)",
+    "all_fields_valid": true,
+    "notes": "entity_type always the valid literal 'account'; urgency always one of the 3 valid literals; confidence_score always within [0.0, 1.0]; all string fields non-empty; created_at always a syntactically valid ISO 8601 timestamp (though not grounded to real time -- see B6-3). No recommendation would be dropped by parse_recommendations()."
+  },
+  "grounding_validation": {
+    "objective": "Cross-check every AI-generated factual claim against real, independently-verified Prompt 3/4/5 numbers.",
+    "non_ai_generated_sections_grounding": "sections.business_overview / income_stability / cash_flow_analysis / loan_readiness_assessment / risk_flags in the lender-brief, and the data fed into financial-health-playbook's recommendations, are computed directly by the same compute_* functions already verified in Prompts 3-5, not by the LLM. Every numeric value checked (income_stability score/cv_pct/label, abm_3m/6m/12m/trend, cash_buffer_months, expense_concentration_ratio_pct, loan_readiness_score/tier/score_breakdown, fraud_risk_score/risk_level, estimated_debt_coverage figures) for all 3 accounts matched the corresponding Prompt 3/4/5 reference values exactly, including the pre-existing B4-1 wrong 'improving' label for the primary account.",
+    "ai_generated_narrative_grounding": [
+      {
+        "account": "primary",
+        "endpoint": "financial-health-playbook",
+        "grounded_claims": [
+          "-2.1 months cash buffer (exact match)",
+          "71.8% variable expense share (exact match)",
+          "$58.2M unclassified by payment mode / $35.7M unclassified business-vs-personal (exact match)",
+          "$1.22M bank charges (exact match)",
+          "-0.7 debt coverage ratio (exact match)"
+        ],
+        "ungrounded_or_invented_claims": [
+          "revenue_at_stake on 2 of 5 recommendations appears to be an arbitrary percentage (~10%, ~5%) of a real base figure rather than any documented methodology -- see B6-2",
+          "created_at timestamps (2023-10-27) are fabricated, not the real generation time -- see B6-3"
+        ],
+        "hallucinations_of_fact": "None found -- every quantitative claim about account state matched real data exactly."
+      },
+      {
+        "account": "savings",
+        "endpoint": "financial-health-playbook",
+        "grounded_claims": [
+          "134.7% CV / volatile income stability (exact match)",
+          "declining ABM trend (exact match)",
+          "loan_readiness_score 20 / Tier D (exact match)",
+          "$892,774.81 across 486 unclassified transactions (exact match)",
+          "cash_buffer_months null / cash_buffer disabled (exact match)"
+        ],
+        "ungrounded_or_invented_claims": [
+          "revenue_at_stake on all 5 of 5 recommendations (4000.0, 3500.0, 7500.0, 1000.0, 500.0) has no traceable basis in any real figure in the supplied context -- see B6-2"
+        ],
+        "hallucinations_of_fact": "None found in narrative/reasoning text; the revenue_at_stake field itself is the only fabricated element."
+      },
+      {
+        "account": "wallet",
+        "endpoint": "financial-health-playbook",
+        "grounded_claims": [
+          "105.0% CV / volatile income stability (exact match)",
+          "0.0 months cash buffer (exact match)",
+          "-45,788.31 available income / -1.5 coverage ratio (exact match)",
+          "$2,372,219.56 / 917 occurrences unclassified payment mode (exact match)",
+          "$63,105,412.94 / 5,342 occurrences unclassified business-vs-personal (exact match)",
+          "42.6% expense concentration (exact match)",
+          "1.8% recurring / 98.2% variable revenue mix (exact match)"
+        ],
+        "ungrounded_or_invented_claims": [
+          "created_at timestamps (2023-10-27) fabricated -- see B6-3"
+        ],
+        "hallucinations_of_fact": "None -- revenue_at_stake values here (6 of 8) are exact matches to real context figures, the best-grounded of the 3 accounts tested."
+      },
+      {
+        "account": "sparse (zero-transaction, in-memory only)",
+        "endpoint": "financial-health-playbook",
+        "grounded_claims": [
+          "Correctly identifies that income_stability/cash_buffer/recurring/variable/debt-coverage figures are null or zero",
+          "Correctly and independently identifies that loan_readiness_score=100/Tier A is misleading because only fraud_risk_inverted contributed -- this matches the real B5-2 defect exactly, self-identified by the model from context alone"
+        ],
+        "ungrounded_or_invented_claims": [
+          "revenue_at_stake (50000.0, 25000.0) entirely fabricated, no real data exists to anchor it -- see B6-2",
+          "created_at fabricated -- see B6-3"
+        ],
+        "hallucinations_of_fact": "None -- the model's qualitative assessment was accurate and notably self-aware of the data-quality problem."
+      }
+    ],
+    "lender_recommendation_grounding": "Not applicable in any tested case -- Gemini call failed for the lender-brief endpoint in all 4 attempts (3 real accounts + 1 sparse test), so sections.lender_recommendation was always [] with no content to ground. See B6-1."
+  },
+  "hallucinations_found": [
+    "No hallucinations of financial fact (invented account events, invented transactions, invented metric values) were found in any AI-generated reasoning/recommended_action/trigger_condition text across all 20 recommendations read.",
+    "The only confirmed fabrications are in 2 required-but-unconstrained AIRecommendation fields: revenue_at_stake (fabricated with no traceable basis when context offers no natural anchor -- B6-2) and created_at (never grounded to real generation time -- B6-3)."
+  ],
+  "sparse_data_behaviour": {
+    "method": "Safe in-memory calls: get_lender_brief_response(None, []) and get_financial_health_playbook_response(None, []), no DB writes, no new ingestion.",
+    "lender_brief": {
+      "crashed": false,
+      "loan_readiness_score": 100,
+      "creditworthiness_tier": "A",
+      "disabled_components": ["income_stability", "abm_trend", "cash_buffer"],
+      "lender_recommendation": [],
+      "top_level_disabled_features_signal": "None -- get_lender_brief_response has no disabled_features return path at all; see B6-4.",
+      "reproduces_B5_2": true
+    },
+    "financial_health_playbook": {
+      "crashed": false,
+      "disabled_features_returned": [
+        {"feature_name": "income_stability", "reason": "Fewer than 3 months of transaction data are available.", "data_needed": "At least 3 months of bank transactions."}
+      ],
+      "recommendations_generated": 2,
+      "notable_finding": "One of the 2 Gemini-generated recommendations (REC-002-SCORE-CLARITY) independently and correctly identified the B5-2 zero-data/inflated-score issue from context alone, without being told about it explicitly."
+    }
+  },
+  "previous_issue_impact": [
+    {"issue": "B4-1 / B5-3", "propagates_to_ai_layer": true, "detail": "Wrong 'improving' abm_trend label and its inflated 25.0/25.0 loan-readiness contribution appear verbatim in the primary account's lender-brief, with no caveat; also suppresses an abm_trend improvement_recommendation entry."},
+    {"issue": "B5-2", "propagates_to_ai_layer": true, "detail": "Reproduces identically inside get_lender_brief_response(None, []); compounded by B6-4 (no warning signal in the lender-brief document itself)."},
+    {"issue": "B3-1", "propagates_to_ai_layer": true, "detail": "Savings account's cash_buffer_months=null / disabled_components include cash_buffer in the lender-brief, consistent with the known transfer-flag contamination; the AI's own recommendation attributes this to generic data-completeness, not the true root cause (not visible in its context)."},
+    {"issue": "B2-3", "propagates_to_ai_layer": true, "detail": "risk_flags.statement_integrity.balance_check='failed' for savings/wallet in the lender-brief, consistent with prior findings; not directly commented on by any AI narrative text."},
+    {"issue": "B5-4", "propagates_to_ai_layer": true, "detail": "risk_flags.statement_integrity.sequential_ordering='failed' for the primary account in the lender-brief, consistent with prior findings."},
+    {"issue": "B5-1", "propagates_to_ai_layer": false, "detail": "Confirmed does NOT propagate -- neither AI endpoint calls compute_cashflow_forecast or references cash-runway/forecast concepts anywhere in context or output."},
+    {"issue": "B1-1 / B1-2 / B1-3", "propagates_to_ai_layer": "indirect only", "detail": "No additional AI-layer-specific effects beyond what B2-3/B5-4 already capture; uncaptured B1-3 columns don't feed any compute_* function consumed by either AI endpoint."}
+  ],
+  "issues_found": [
+    {"id": "B6-1", "severity": "Critical", "summary": "lender_recommendation is always empty (4/4 real Gemini calls failed) due to an 8-second timeout applied per-attempt inside a 3-retry loop, when the real Gemini response for this prompt consistently takes longer than 8s but succeeds within the sibling endpoint's default 30s timeout."},
+    {"id": "B6-2", "severity": "Medium", "summary": "revenue_at_stake is fabricated with no traceable basis whenever the account's real data offers no natural anchor value (savings account 5/5, sparse test 2/2); well-grounded only when a real anchor value exists (wallet, some of primary)."},
+    {"id": "B6-3", "severity": "Low", "summary": "created_at is never grounded to real generation time across all tested recommendations -- schema-valid but semantically fabricated."},
+    {"id": "B6-4", "severity": "Medium", "summary": "Lender-brief endpoint has no disabled_features signaling at any level, compounding B5-2's inflated zero-transaction score with the least guardrail messaging of any Bank endpoint tested."}
+  ],
+  "status": "PASS WITH ISSUES",
+  "summary": "Both Bank AI endpoints exist, are reachable, return the correct response envelope, and produce schema-valid AIRecommendation objects. All non-AI-generated numeric content in both endpoints is grounded exactly to real, independently-verified Prompt 3/4/5 data, including faithful (if undesirable) propagation of pre-existing issues B4-1/B5-2/B5-3/B3-1/B2-3/B5-4. No hallucinations of financial fact were found in any AI-generated narrative text; the model's qualitative reasoning was consistently accurate and in one case self-diagnosed a known defect (B5-2) unprompted. However, a new critical defect (B6-1) means the lender-brief's own AI recommendation section has never once succeeded in this environment, and two schema fields (revenue_at_stake, created_at) are unreliable placeholders whenever the model lacks a real anchor value. None of these issues are data-corruption or crash risks; all degrade silently and safely.",
+  "can_proceed_to_prompt_7": true
+}

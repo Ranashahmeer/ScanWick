@@ -1,0 +1,221 @@
+SCANWICK — DEVELOPER 
+SCOPE FOR THE NEW PRD
+What survives, what is corrected, what is deleted, what must be built.
+Bank Statement analyzer is the product. Ecommerce ingestion survives only as the cash-verification input. Sales 
+analyzer is cancelled.
+Measured against the codebase on 27 July 2026.
+1. THE DECISION, IN NUMBERS
+Measured against the actual codebase on 27 July 2026.
+SERVICES: 41 files, 6,124 lines are KEEPERS. 34 files, 4,906 lines are REMOVED. That is 44 percent of the 
+service layer deleted.
+TESTS: 19 sales-specific test files, 3,195 lines, deleted with them. The remaining suite is 105 files.
+WHAT THIS MEANS FOR THE PRD: you are not writing a new specification from zero. You are writing a 
+specification for a system that already has a working ingestion layer, a working mapping layer, a correct net 
+margin engine, a correct balance integrity check, and a reconciliation spine. The new PRD documents what 
+survives, corrects what is wrong, and adds what is missing. It should be roughly half the length of the last one.
+2. KEEP — THE FOUNDATION THE NEW PRD SITS ON
+2.1 The three strategic assets — treat these as first-class in the PRD
+reconciliation.py and the reconciliation_reports table. Every analysis writes a record: source file, date range, 
+currency conversions, records excluded and why, disabled features, contextual markers applied. Every metric 
+links back through analysis_run_id. THIS IS THE PRODUCT. Analysis is being commoditised; verifiable 
+provenance is not. The new PRD should build outward from this, not treat it as compliance overhead.
+column_mapping.py and column_mapping_store.py plus the column_mappings table. Four-tier resolution, exact 
+then fuzzy then confirm then unmapped, with monetary fields blocked from fuzzy auto-apply. Saved per 
+merchant on a header signature so repeat uploads are zero-touch. This is why Scanwick accepts files other tools 
+reject.
+mono_client.py and mono_ingestion.py. The zero-effort data path. Today it is the primary ingestion route; when 
+the NIBSS registry goes live it becomes one adapter among two. Keep the abstraction clean so open banking 
+slots in beside it.
+2.2 Bank statement core — all keepers
+bank_ingestion.py — CSV parsing and canonical row writing for all 13 bank formats plus generic fallback.
+bank_pdf_ingestion.py — PDF and OCR path for scanned statements.
+bank_account_integrity.py — balance integrity check at 0.01 tolerance, and interbank own-account transfer 
+detection. Correct as built. Do not touch.
+bank_transaction_classification.py — payment mode and category classification (transfer, POS, cash 
+withdrawal, mobile money, direct debit, standing order, bank charge).
+bank_cashflow.py — eligible_transactions, the single point that excludes is_anomalous and own-account 
+transfers from every downstream calculation. Correct and important.
+bank_dashboard.py — Tier 1 descriptive summary.
+
+bank_income_stability.py — coefficient of variation and stability class.
+bank_abm.py — average monthly balance, 3, 6 and 12 month windows.
+bank_cashflow_analysis.py — cash buffer, expense concentration, recurring versus variable, business versus 
+personal.
+bank_fraud_risk.py — z-score, structuring, duplicate payee, timing anomalies, composite 0-100 score with 
+explainable breakdown.
+bank_loan_readiness.py — the 30/25/25/20 composite, creditworthiness tier, improvement recommendations, 
+estimated debt coverage.
+bank_lender_brief.py — keep the orchestration and the metric assembly. The rendering is rebuilt (see section 3).
+bank_playbook.py — AI recommendations for the borrower-facing view.
+bank_cashflow_forecast.py — 90-day projection and cash runway. Second-phase keeper; lenders care about 
+runway.
+2.3 Ecommerce — only what feeds cash verification
+ecommerce_ingestion.py — sales record parsing. Needed because sales records are how you prove unbanked 
+cash revenue.
+ecommerce_margins.py — the net margin formula. Implemented exactly to the Developer Guide, correctly 
+returns null rather than zero when COGS is unknown. Do not rewrite it.
+ecommerce_revenue.py — revenue aggregation. Needed for the cash-gap comparison. Has a currency defect to 
+fix.
+ecommerce_order_items.py — line-item joins.
+ecommerce_dashboard.py — minimal summary.
+EVERYTHING ELSE IN ECOMMERCE IS DELETED. The ecommerce analyzer is no longer a product. It is 
+one input to the bank product.
+2.4 Platform — keepers
+encryption.py (Fernet at rest), storage.py (S3 and local), upload_staging.py, redis_client.py, exchange_rates.py, 
+fx_rates.py, merchant_currency.py, dataset_detection.py, recommendation_generation.py, ai_client.py (Gemini 
+with retry), contextual_markers.py (service is correct, API must be built), merchant_provisioning.py, 
+team_management.py, privacy.py, rbac.py, entitlements.py and plan_permissions.py (mechanism keeps, matrix 
+is rewritten).
+3. FIX — KEEPERS THAT ARE BROKEN
+These are in the new PRD as corrections, not as new features. The behaviour they describe is already specified; 
+the implementation is wrong.
+bank_loan_readiness.py lines 59-68 — ABM averages only days that had transactions. Verified 64.9 percent 
+understatement. Must carry the balance forward across zero-activity days. Line 72 — use calendar months, not 
+months times 30.
+bank_loan_readiness.py lines 265-275 — weights are silently renormalized when a component is unavailable, so 
+the API reports 40 percent where the PRD fixes 30. Report true fixed weights plus a maximum achievable score.
+bank_loan_readiness.py line 54 — a coefficient of variation of exactly 40 is classified volatile; the PRD places 
+40 in moderate.
+bank_lender_brief.py lines 20-27, 78, 92-118 — section keys do not match the specification, values are 
+dictionaries where prose is required, and the renderer truncates at 110 characters on a single page with no 
+wrapping. Rebuild the rendering and generate real narrative per section.
+
+bank_fraud_risk.py — the z-score at 3.0 and round-number structuring detection will flag ajo, esusu and adashe 
+as fraud. Add contributory-savings detection and report the pattern as a positive signal.
+routes/bank.py lines 64-69 — a single READ_ROLES set gives loan officers full transaction detail. Split it. 
+Your buyers are loan officers.
+ecommerce_revenue.py lines 50-74 — sums mixed currencies and labels the total with the first row's currency. 
+Use base_currency_amount.
+ecommerce_ingestion.py lines 370-374 — rows without an order ID are never deduplicated, so re-upload 
+doubles revenue. Deterministic content hash plus a unique constraint.
+ingestion, all analyzers — dates parse month-first. Add dayfirst handling and read date_locale from stored 
+value_rules. Flag ambiguous dates rather than guessing.
+column_mapping.py synonym dictionary — 'total cost' resolves to unit_cogs at exact match, treating a line total 
+as a per-unit cost.
+quality reporting — rejected rows currently emit no warnings at all. Every rejection must produce a named 
+warning. This is the PRD's founding principle and it is not implemented on the rejection path.
+rbac.py and every route — merchant_id arrives as a client-supplied query parameter and is computable from 
+user_id. Derive from session; enforce as a router dependency rather than inside handler bodies.
+4. DELETE — AND WHY
+4.1 Sales analyzer — 17 services, 3,195 lines of tests, all models and 
+routes
+Delete: sales_deals, sales_forecast, sales_ingestion, sales_notifications, sales_pipeline, sales_playbook, 
+sales_postmortem, sales_quality, sales_rbac_scoping, sales_rep_leaderboard, sales_rep_trajectory, 
+sales_slippage, sales_stage_timing, sales_stage_velocity, sales_stagnation, sales_win_dna, 
+sales_win_probability. Plus the deals and stage_transition_logs tables and all sales routes.
+Why: fewer than half of businesses use a CRM at all, and the features that justify the price disable when stage 
+history is absent, which is the normal case for a CSV export. No local advantage. Highest remaining build cost, 
+smallest market.
+Do not leave it dormant. Dormant code still generates bugs, review burden and confusion about what the 
+product is.
+4.2 Ecommerce depth features — 13 services
+Delete: ecommerce_rfm, ecommerce_rfm_endpoint, ecommerce_churn, ecommerce_holt_winters, 
+ecommerce_inventory_forecast, ecommerce_sku_matrix, ecommerce_diagnostics, ecommerce_returns, 
+ecommerce_ad_kill_switch, ecommerce_playbook, ecommerce_olist_adapter. Plus the 
+rfm_segment_assignments, sku_inventory and ad_kill_audit_log tables.
+Why: every one of these requires data a Nigerian retailer does not have — customer identity, stock counts, ad 
+spend, returns records. Measured on real data: only 11 of 354 product strings had the 8 weeks of history Holt-
+Winters requires. These features exist to serve a Shopify merchant, and that is not who you are selling to.
+4.3 Bank features that do not serve a credit decision
+Delete for now: bank_customer_segmentation (counterparty grouping — also the main channel through which 
+confidential payee data leaks to loan officers), bank_revenue_patterns (seasonality requires 24 months, which 
+almost no user will have).
+These can return later. They are not wrong, they are simply not on the path to a signed lender.
+
+4.4 Mothball, do not delete
+payments.py, paystack_client.py, flutterwave_client.py, payment_provider.py, and the subscriptions and 
+payment_transactions tables. Move to a branch and remove the routes from main. You are not charging SMEs at 
+pilot and institutional invoicing happens offline. This code works; you just do not need it running, and every live 
+endpoint is attack surface.
+Also mothball: generated_reports and report_schedules, and the notification scheduling layer, until there is a 
+customer asking for scheduled delivery.
+5. BUILD — WHAT THE NEW PRD MUST ADD
+None of these exist today. They are the difference between the old specification and a product a Nigerian lender 
+will buy.
+5.1 Identity
+BVN capture and verification. There is no identity layer at all today. Open banking access is BVN-anchored, 
+and without it you cannot link one business's several accounts into a single entity — which the interbank netting 
+logic already assumes exists.
+Business entity model, separate from the user account. One business, several bank accounts, one assessment.
+5.2 Multi-account consolidation — move from post-MVP to core
+Nigerian SMEs hold two to four accounts: a commercial bank for formality, a fintech wallet for daily trade, 
+sometimes a cooperative. Analysing one account systematically understates the business. This is not an 
+enhancement, it is a correctness requirement for this market.
+5.3 Cash-gap reconciliation — the feature nobody else has
+Compare bank inflows against uploaded sales records. Report the difference as verified unbanked cash revenue. 
+Example from real data: bank inflows 5,200,000; sales records 8,633,800; unbanked cash revenue 3,433,800, or 
+40 percent.
+This is the entire reason the ecommerce ingestion survives. For a lender assessing a trader whose bank statement 
+looks thin, this single number converts a decline into an approval. Specify it as a first-class output with its own 
+confidence treatment, not as a footnote.
+5.4 Consent, retention and audit — NDPA obligations
+Stored consent records with timestamp, scope and revocation. A documented retention period per data class. A 
+working delete-my-data endpoint. An access audit log recording who viewed which assessment and when. No 
+institution will send you a real customer statement without these, and NDPC registration assumes they exist.
+5.5 The verifiable assessment link
+Replace the lender brief PDF with a shareable link that shows the analysis, the source, the ingestion date and the 
+integrity check result. A PDF can be edited. A link backed by the reconciliation record cannot. This is where the 
+attestation asset becomes visible to the buyer.
+5.6 Outcome tracking
+Log every score issued and record the repayment result when it becomes known. In eighteen months an 
+accuracy claim backed by real outcome data is the only asset a foundation model cannot replicate. Start 
+collecting before you have anything to prove.
+
+5.7 Currency reality
+Report revenue trends in both nominal and real terms. A 12-month NGN trend during devaluation shows growth 
+that is not real, and a lender reading 'improving trajectory' off inflation is being misled.
+6. DATA MODEL
+6.1 Tables that survive
+accounts, bank_transactions, bank_account_identifiers, orders, order_items, uploads, column_mappings, 
+contextual_markers, reconciliation_reports, merchant_settings, exchange_rates, user_merchant_roles, users and 
+auth tables, login_events, team_invites, notification_preferences.
+6.2 Tables deleted
+deals, stage_transition_logs, rfm_segment_assignments, sku_inventory, ad_kill_audit_log, postmortem_reports, 
+returns.
+6.3 Tables mothballed
+subscriptions, payment_transactions, generated_reports, report_schedules.
+6.4 New tables the PRD must define
+business_entities — the legal business, with BVN, CAC number and owner. Parent of several accounts.
+consent_records — subject, scope, granted_at, revoked_at, source (Mono, open banking, direct upload).
+data_access_log — who accessed which assessment, when, from where.
+assessments — the unit of value and the unit of billing. Replaces the loose notion of an analysis run as the thing 
+an institution pays for.
+assessment_shares — the verifiable link, its recipient, expiry and view history.
+assessment_outcomes — loan approved or declined, amount, repayment status, for accuracy measurement.
+6.5 Redesign required
+user_merchant_roles — the current role sets are generic owner, admin, manager, viewer. The PRD defines 
+semantic roles with distinct scopes: Account Owner or CFO, Accountant, Loan Officer, Analyst read-only. The 
+generic model cannot express 'loan officer sees the brief but not transaction detail', which is why that defect 
+exists. Redesign the role model before rewriting the RBAC matrix.
+7. ENDPOINTS THAT SURVIVE
+KEEP: POST /api/v1/bank/upload (consolidate the split pdf and mono routes back into one endpoint taking 
+source_type, as the Developer Guide specified). GET /api/v1/bank/upload/{id}/quality-report. GET 
+/api/v1/bank/dashboard/summary. GET /api/v1/bank/diagnostic/income-stability. GET 
+/api/v1/bank/diagnostic/abm. GET /api/v1/bank/diagnostic/cashflow-analysis. GET 
+/api/v1/bank/predictive/fraud-risk. GET /api/v1/bank/predictive/loan-readiness. GET 
+/api/v1/bank/predictive/cashflow-forecast. GET /api/v1/bank/ai/lender-brief. GET /api/v1/bank/ai/financial-
+health-playbook. GET /api/v1/reconciliation/{analysis_run_id}. POST /api/v1/upload/csv. POST 
+/api/v1/mapping/detect and /confirm. Auth, team and privacy routes.
+DELETE: everything under /api/v1/sales. Ecommerce keeps only upload, quality report and a minimal revenue 
+endpoint for the cash-gap comparison.
+
+NEW: markers CRUD, BVN and entity endpoints, consent endpoints, assessment share links, and the 
+institution-facing assessment API.
+8. RULES FOR WRITING THE NEW PRD
+1. One document, not four. Three PRDs plus a Developer Guide plus a Mapping Guide produced three 
+contradictory net margin formulas and a k=6 clustering spec with seven labels. One specification, versioned, 
+with a change log.
+2. Specify the security and compliance layer. The previous specification's entire security section was two table 
+rows. Password policy, token lifetime, rate limits, file validation, encryption scope, consent, retention, audit, 
+RBAC matrix — all of it belongs in the PRD, because everything absent from the PRD became a critical defect 
+in the code.
+3. Define a data maturity ladder. Mono connected, statement uploaded, statement plus sales records, multi-
+account. State exactly what each rung unlocks and what stays disabled. This replaces the assumption that every 
+user has the same data.
+4. Never label a number with a word the data cannot support. Gross profit, contribution margin and net profit are 
+three different things. Show only the one the inputs justify. The old specification's net margin label collapsed to 
+gross profit for any business without shipping, ad spend and processing fees — which is every physical retailer.
+5. Write the accuracy targets so they can be tested. 'False positive rate below 5 percent' against no labelled 
+dataset is not a Definition of Done, it is a wish. State the measurement method or remove the target.
+6. Write it after the interviews, not before. Ten conversations using the six questions, then the PRD. The 
+specification should be written by your buyers.

@@ -1,0 +1,37 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 4,
+  "prompt_name": "Diagnostics Endpoint Testing",
+  "dataset_name": "ecommerce_orders_10k_updated.csv",
+  "merchant_id_tested": "22222222-2222-2222-2222-222222222222",
+  "response_envelope_verification": {"all_3_endpoints": "Confirmed exact {success, data, meta:{...}} shape.", "schema_compliant": true},
+  "profit_leaks_verification": {
+    "endpoint_returned": {"total_leaking_skus": 0, "leaks": [], "disabled_features": []},
+    "independently_recomputed": {"total_line_items": 0, "coverage_disabled": false},
+    "match": true,
+    "finding": "This merchant has 0 order_items (confirmed in Prompt 2 -- this file has no sku column at all). compute_cogs_coverage's guard requires total>0 before setting disabled=True, so this 0-line-item case reports total_leaking_skus=0 with disabled_features=[] rather than an explicit 'insufficient data' signal. This is the SAME already-tracked E3-1/E2-4 pattern recurring in profit-leaks specifically -- referenced in QA_ISSUES.md, not logged as a separate new issue."
+  },
+  "dead_stock_verification": {
+    "endpoint_returned": {"dead_sku_count": 0, "total_capital_at_risk": 0.0, "dead_skus": []},
+    "independently_recomputed": {"dead_sku_count": 0},
+    "match": true,
+    "note": "Correct, trivial result: 0 order_items means 0 SKUs to check. dead-stock has no disabled_features mechanism, so this natural empty result is not a variant of the E3-1 gap -- there is genuinely nothing to report (unlike profit-leaks, dead-stock's core signal doesn't depend on COGS coverage at all, only on order_items existing)."
+  },
+  "return_forensics_verification": {
+    "endpoint_returned": {"return_patterns": []},
+    "finding": "Confirms E2-3's predicted impact -- 0 rows in the returns table for this merchant, correctly producing an empty pattern list."
+  },
+  "thin_data_and_threshold_findings": {
+    "profit_leaks_threshold": "20% COGS-missing threshold not meaningfully evaluable for this merchant (0 line items -- see E3-1 cross-reference above).",
+    "dead_stock_threshold": "No disabled_features mechanism exists at all (confirmed via code reading).",
+    "return_forensics_threshold": "No disabled_features mechanism exists at all (confirmed via code reading)."
+  },
+  "issue_propagation_summary": {
+    "propagates": ["E2-3 (return-forensics confirmed empty)", "E3-1/E2-4 (recurs in profit-leaks for this merchant, referenced not duplicated)"],
+    "does_not_apply": ["E1-3", "E1-4 (no diagnostic references Order.gross_revenue directly; this merchant's E1-4 mis-mapping affects dashboard, not any diagnostic tested here)", "E1-5", "E2-1 (no unit_net_margin data exists for this merchant at all, so nothing to inherit)", "E2-2 (this merchant was not part of the duplicate-ingestion test)", "E3-2 (not enough real data to evaluate)"],
+    "new_issues_this_prompt": []
+  },
+  "status": "pass_with_issues",
+  "summary": "All 3 diagnostic endpoints return correct, schema-compliant, degenerate-but-honest empty results for this merchant, matching its known 0-order_items/0-returns state exactly. No new defects found for this dataset; the one gap present (profit-leaks not signaling 'no data' explicitly) is the already-tracked E3-1/E2-4 pattern, not a new issue.",
+  "can_proceed_to_prompt_5": true
+}

@@ -1,0 +1,67 @@
+SODIQ OLUWASEYE OGUNFOWORA
+ 
+ 
+Print Date
+August 09, 2026
+Account Number
+1010101760
+Period
+August 1st, 2026 - August 9th, 2026
+Total Debit
+110.75
+Branch Name
+Adekunle Fajuyi Road, Dugbe
+Debit Count
+2
+Reference
+6392186118378048504890
+Address
+26, Heritage Crescent, Aboru, Alimosho, Lagos , Lagos
+Currency
+NGN
+Opening Balance
+0.00
+Closing Balance
+5,089.25
+Credit Count
+1
+Total Credit
+5,200.00
+Account Type
+Individual Savings Account (TIER3)
+ 
+Trans Date
+Reference
+Value Date
+Debit
+Credit
+Balance
+Narration
+05 Aug 2026
+M00002138
+05 Aug 2026
+5,200.00
+5,200.00
+From Opay Digit/SODIQ OLUWASEYE 
+OGUN/Transfer from SODIQ OLUWASEYE
+09 Aug 2026
+M00000460
+09 Aug 2026
+100.00
+5,100.00
+NIP/RIB To Opay Digit SODIQ OLUWASEYE OGUN 
+testing -000041260809083212000000944739
+09 Aug 2026
+M00000460
+09 Aug 2026
+10.75
+5,089.25
+NIP/RIB To Opay Digit SODIQ OLUWASEYE OGUN 
+testing -000041260809083212000000944739
+ 
+ 
+PLEASE DIRECT ALL ENQUIRIES TO ALPHA MORGAN BANK LIMITED, 
+44, ADETOKUNBO ADEMOLA CRESCENT, WUSE II, 
+ABUJA, NIGERIA. 
+E-MAIL: ENQUIRIES@ALPHAMORGANBANK.COM
+Page 1 of 1

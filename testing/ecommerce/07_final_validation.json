@@ -1,0 +1,688 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 7,
+  "prompt_name": "Final Validation Report",
+  "date": "2026-07-11",
+  "mode": "Pure consolidation of Prompts 1-6's already-generated JSON evidence and testing/ecommerce/QA_ISSUES.md. No new testing, no ingestion, no endpoint calls, no database writes, no code/documentation changes performed in this prompt.",
+  "section_1_dataset_coverage": [
+    {
+      "dataset": "scanwick_test_ecommerce_orders.csv",
+      "merchant_id": "11111111-1111-1111-1111-111111111111",
+      "prompts_completed": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "missing_coverage": "None -- tested in all 6 prompts. Ad-kill-switch (manual configure/pause + real automatic evaluation) was only exercised for this merchant, not the other 2 (a scope choice, not a gap -- this merchant has the richest real channel/ad-spend/net-margin data).",
+      "notes": "Ingested twice (Prompt 2), producing 1,964 orders/order_items from 982 real source rows (E2-2's duplicate-ingestion test). This duplication propagates into every subsequent prompt's figures for this merchant and is referenced, not re-flagged, throughout."
+    },
+    {
+      "dataset": "ecommerce_orders_10k_updated.csv",
+      "merchant_id": "22222222-2222-2222-2222-222222222222",
+      "prompts_completed": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "missing_coverage": "None -- tested in all 6 prompts, consistently as a sparse/degenerate case (0 SKUs, 0 identified customers) since this file has no sku/customer_email columns.",
+      "notes": "Volume/row-count test only, per Prompt 1's own classification -- correctly never produces SKU-level, margin, or customer-identity data at any layer."
+    },
+    {
+      "dataset": "Olist multi-table set (olist_orders_dataset.csv + olist_order_items_dataset.csv + olist_order_payments_dataset.csv, via app/services/ecommerce_olist_adapter.py)",
+      "merchant_id": "33333333-3333-3333-3333-333333333333",
+      "prompts_completed": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "prompts_partially_completed": [
+        5,
+        6
+      ],
+      "missing_coverage": "Prompt 5: RFM/churn-risk fully tested (fast, trivially empty -- no identified customers); inventory-forecast's full result was NOT obtained -- confirmed still actively computing after 12+ minutes (E5-2) and deliberately not run to completion. Prompt 6: profit-leaks/dead-stock context and 2 real Gemini API attempts were made directly (bypassing the slow inventory-forecast call), but both attempts failed with a real 429 rate-limit error (E6-3) before any AI narrative text was produced -- grounding/hallucination verification for this merchant's AI layer is explicitly Not Observed, not assumed.",
+      "notes": "Chosen in Prompt 1 as a real multi-table 'stress test' dataset (112,650 real order_items, ~33,000 distinct SKUs). This scale is exactly what surfaced E5-2 (Holt-Winters performance) -- a genuine, valuable finding directly attributable to using the full real dataset rather than a truncated sample."
+    },
+    {
+      "dataset": "product-supplier.csv, archive (19)/orders.csv, diversified_ecommerce_dataset.csv, df_Orders.csv/df_OrderItems.csv/df_Products.csv (test/train), archive (24)/(25) products.csv",
+      "merchant_id": "N/A -- excluded from ingestion entirely",
+      "prompts_completed": [
+        1
+      ],
+      "missing_coverage": "By design, not a gap -- Prompt 1 determined via repository + data evidence that none of these are viable Ecommerce transactional datasets (no cost column, wrong entity type, redundant subset of Olist, or belongs to the Sales vertical). Documented in `01_dataset_discovery.json` with per-dataset reasoning.",
+      "notes": "archive (19)/orders.csv specifically was proven, via code-level field-resolution tracing, to silently mis-map unit_price if ever ingested (E1-6) -- correctly excluded, not merely deprioritized."
+    }
+  ],
+  "section_2_prompt_summaries": [
+    {
+      "prompt": 1,
+      "name": "Dataset Inspection + Schema Mapping",
+      "summary": "Repository-first dataset triage identified 3 viable Ecommerce ingestion candidates (the primary generic-CSV file, the 10k volume file, and the real Olist 9-file set) and excluded 5 others with evidenced reasoning, correcting the original prompt's assumptions in several places (e.g. archive (19)/orders.csv's 'unused COGS column' claim was shown to be actually unusable without a code change, not merely unreferenced). Discovered that an Olist adapter already exists in the codebase but is unwired to any route (E1-2), and that no HTTP/Celery trigger exists for any Ecommerce ingestion source at all (E1-1). Found 2 real, dataset-specific mapping defects via direct code tracing (E1-4 gross_revenue mis-mapping, E1-5 hardcoded NGN currency) and one Olist-adapter data-fidelity gap (E1-3, order_status discarded)."
+    },
+    {
+      "prompt": 2,
+      "name": "Ingestion Testing",
+      "summary": "All 3 recommended datasets ingested cleanly (0 rows rejected across 982+982+10,000+112,650 real rows) via direct function calls, confirming Prompt 1's 3 predicted mapping defects (E1-3/E1-4/E1-5) empirically with real persisted data. Corrected the prompt's own 'COGS Verification' terminology (the described 3-tier fallback chain belongs to return cost, not COGS) and verified 2 of its 3 tiers correct using one real, deliberately-configured MerchantSettings row. Discovered 3 new defects via independent net_margin recomputation and DB-state inspection: net_margin systematically omits 2 real cost fields (E2-1, High), no duplicate-ingestion protection exists (E2-2, High, confirmed by re-ingesting the same file), and the `returns` table is never populated by any ingestion path (E2-3, High) -- the latter proven to make an entire diagnostic feature permanently non-functional."
+    },
+    {
+      "prompt": 3,
+      "name": "Dashboard Endpoint Testing",
+      "summary": "All 3 dashboard endpoints (summary, revenue, sku-matrix) returned arithmetically perfect results against independent SQL/service-function recomputation across all 3 merchants and an explicit date-range query with its change_pct calculation -- 0 mismatches anywhere. Every anomaly observed traced to already-known upstream issues (E2-1's margin inflation, E2-2's duplicated totals, E1-4/E1-5's bad ingested data) rather than new dashboard-layer bugs. Found one new, low-severity recurrence of a 'no-data-signal' gap in the dashboard/diagnostic COGS-coverage check (E3-1, cross-referencing E2-4), one confirmed-correct-but-noteworthy wall-clock-relative design characteristic (E3-2), and one test-scaffolding RBAC format mismatch requiring a workaround (E3-3, same root cause as Bank's B3-4)."
+    },
+    {
+      "prompt": 4,
+      "name": "Diagnostics Endpoint Testing",
+      "summary": "All 3 specification-named diagnostics (profit-leaks, dead-stock, return-forensics) confirmed implemented and route-registered. profit-leaks'/dead-stock's own totals matched independent recomputation exactly, and return-forensics was confirmed empty for all 3 merchants, directly proving E2-3's predicted impact at the endpoint level. Close inspection of profit-leaks' explanatory fields (prompted by tracing why a real, high-COGS SKU's true cost driver never appeared in the response) surfaced 2 new, high-severity defects: a variable-shadowing bug that permanently mis-persists `unit_return_cost` (E4-1), and a fundamental disconnect between `leak_breakdown`/`primary_leak_driver` and the actual margin formula that excludes COGS entirely (E4-2, verified with exact real numbers showing COGS was ~93% of one SKU's true cost yet never considered). One new low-severity finding on dead-stock's misleading zero-capital-at-risk reporting (E4-3)."
+    },
+    {
+      "prompt": 5,
+      "name": "Predictive Model Testing",
+      "summary": "All 4 specification-named predictive features (Holt-Winters inventory forecast, RFM segmentation, churn-risk, ad-kill-switch) confirmed implemented, including ad-kill-switch's automatic evaluation being genuinely wired to a real Celery beat schedule (unlike E1-1's ingestion gap -- a positive finding). RFM clustering verified deterministic and exhaustive (k=6, 238/238 customers in exactly one segment); churn-risk's Kaplan-Meier edge case verified against the real maximum historical gap; ad-kill-switch's auto-pause decision independently verified via SQL against real channel-level data (3/3 channels correctly identified). Precisely quantified E2-2's impact on RFM (56 of 238 customers misclassified, zeroing out the 'New Customers' segment) and E2-1's theoretical risk to ad-kill-switch's decision logic. Two new findings: Holt-Winters forecasts are computed correctly but never surfaced in any API response due to the permanently-empty `sku_inventory` table (E5-1), and the real endpoint is impractically slow for large catalogs -- confirmed still computing after 12+ minutes for Olist's ~33,000 SKUs before being deliberately terminated (E5-2)."
+    },
+    {
+      "prompt": 6,
+      "name": "AI Layer Testing",
+      "summary": "The single Ecommerce AI endpoint (`/ai/playbook`) confirmed schema-compliant (0 AIRecommendation violations across 8 real recommendations) and factually well-grounded -- every numerical claim traced exactly to already-verified Prompt 4 data, with zero hallucinated facts about the business. Directly confirmed E4-2's misleading root-cause attribution propagates verbatim into confident AI narrative text, and E2-2's duplication propagates into every dollar figure. Two schema-required fields were confirmed fabricated with no real anchor in the AI's context: `currency` (always 'USD' despite 100% real NGN data, E6-1, new) and `created_at` (a placeholder date, E6-2, new, confirming the same cross-vertical root cause already documented in Bank's B6-3). A real Gemini 429 rate-limit error was encountered twice live and confirmed not retried at all despite being a transient, retry-appropriate condition (E6-3, new) -- though the failure was confirmed to degrade gracefully with no crash. Olist's AI layer could not be fully tested via the real endpoint (blocked by E5-2, reconfirmed independently) and a direct-context fallback attempt hit the same real 429 twice, leaving that merchant's AI grounding explicitly Not Observed."
+    }
+  ],
+  "section_3_implemented_features": [
+    "CSV ingestion via 3 column maps (Shopify, WooCommerce, Generic) sharing one canonical extract/write path (app/services/ecommerce_ingestion.py)",
+    "Olist multi-table adapter (flatten_olist_dataset/ingest_olist_dataset, app/services/ecommerce_olist_adapter.py) -- functionally complete, though unwired to any route (E1-2)",
+    "Dashboard: summary, revenue, sku-matrix (3 endpoints)",
+    "Diagnostics: profit-leaks, dead-stock, return-forensics (3 endpoints)",
+    "Predictive: Holt-Winters inventory forecast, RFM segmentation (k-means, k=6), churn-risk (Kaplan-Meier survival analysis), ad-kill-switch (manual configure/pause + a genuinely-scheduled automatic evaluation via Celery beat)",
+    "AI: 1 playbook endpoint backed by the shared Gemini-based generate_recommendations() function",
+    "RBAC: 4 EcommerceRole values (owner/admin/manager/viewer) with distinct READ/PAUSE/CONFIGURE role sets",
+    "Shared response envelope ({success, data, meta:{missing_fields, disabled_features, analysis_run_id}}) -- consistent across every endpoint tested",
+    "MerchantSettings (base_currency, default_return_cost, ad_kill_mode/threshold_days)",
+    "Return-cost 3-tier fallback chain (SKU Override / Merchant Default / Zero) -- 2 of 3 tiers verified correct with real data",
+    "COGS-coverage-based disabled_features gating for profit-leaks/sku-matrix, correctly firing at genuine threshold-crossing percentages"
+  ],
+  "section_4_missing_features": [
+    "No HTTP route or Celery dispatch path exists to trigger any Ecommerce ingestion source (CSV, XLSX, or Olist) -- E1-1/E1-2. Ingestion is only reachable via direct function calls, matching this repo's own test suite's pattern.",
+    "No ingestion path anywhere writes to the `returns` table -- E2-3 -- making return-forensics permanently non-functional with any currently-ingestible real dataset.",
+    "No ingestion path anywhere writes to `sku_inventory` -- E5-1 -- making Holt-Winters' stockout predictions permanently invisible in the actual API response for any dataset.",
+    "No duplicate-ingestion protection of any kind (no unique constraint, no content-hash check) -- E2-2.",
+    "No currency information is threaded into the AI playbook's context at all -- E6-1 -- the model has zero grounding basis for the required `currency` field.",
+    "No retry-with-backoff for HTTP 429 (rate-limit) responses from Gemini -- E6-3 -- 429 is grouped with genuine non-retryable 4xx client errors."
+  ],
+  "section_5_partially_implemented_features": [
+    "net_margin / unit_net_margin -- computed and internally consistent, but omits 2 real cost fields (processing_fees, allocated_ad_spend) at the ingestion-time call site despite the underlying compute_net_margin() function fully supporting them (E2-1).",
+    "OrderItem.unit_return_cost persistence -- the resolved return-cost value is correctly used to compute unit_net_margin, but a variable-shadowing bug persists the wrong (raw, pre-resolution) value to the database column itself (E4-1).",
+    "profit-leaks' leak_breakdown/primary_leak_driver -- computed and internally consistent with its own (incomplete) inputs, but structurally disconnected from the actual unit_net_margin formula it claims to explain, omitting COGS (the real dominant cost) entirely (E4-2).",
+    "disabled_features / insufficient-data signaling -- correctly implemented for income-stability-style COGS-threshold checks (profit-leaks, sku-matrix) at genuine threshold-crossing percentages, but has a confirmed blind spot for the '0 total line items' edge case across 3 separate code locations (ingestion's quality report E2-4, and the dashboard/diagnostic-layer compute_cogs_coverage E3-1) -- and is entirely absent from dead-stock, return-forensics, and ad-kill-switch (though those 3 have no COGS-dependent signal to gate in the first place).",
+    "dead-stock's total_capital_at_risk -- correctly sums real per-SKU carrying costs when available, but silently reports 0 (not null/unknown) when 100% of dead SKUs lack COGS data (E4-3)."
+  ],
+  "section_6_verified_features": [
+    "Ingestion row-count/rejection arithmetic (3/3 datasets, 0 mismatches, including the 112,650-row real Olist stress test)",
+    "Return-cost 3-tier fallback chain (2 of 3 tiers, using one real, deliberately-configured MerchantSettings row, not fabricated data)",
+    "Dashboard summary/revenue/sku-matrix arithmetic (0 mismatches across all 3 merchants, including an explicit date-range query and its change_pct calculation independently verified against the exact non-calendar-aligned previous-period window the code uses)",
+    "profit-leaks/dead-stock/return-forensics totals (0 mismatches against direct service-function recomputation)",
+    "Holt-Winters forecast values (directionally sane against real historical weekly quantities for all 8 primary-merchant SKUs, independently spot-checked)",
+    "RFM clustering (k=6 confirmed via code, not assumed; deterministic across 2 real calls; 238/238 customers in exactly one segment, no duplicates)",
+    "Churn-risk's Kaplan-Meier certain-churn edge case (verified against the real maximum historical inter-purchase gap via direct SQL)",
+    "Ad-kill-switch's automatic evaluation decision logic (verified via direct SQL against real channel-level ad_spend/net_margin data over the exact evaluation window)",
+    "AIRecommendation schema compliance (0 violations across all 8 real recommendations checked)",
+    "AI grounding (0 hallucinated facts -- every numerical claim in every recommendation traced exactly to already-verified diagnostic data)",
+    "RBAC role-gating (403 for no-role merchants), invalid-input handling (400 for malformed merchant_id), response envelope shape (consistent across every endpoint in every prompt)",
+    "Merchant isolation (no cross-contamination observed in any figure, any endpoint, any prompt)"
+  ],
+  "section_7_not_yet_verified_features": [
+    "The SKU-Override tier of the return-cost fallback chain (E2-5) -- no dataset currently in the repository carries real per-row return-cost source data; would require a new dataset, not fabricated data, to test.",
+    "Olist's inventory-forecast at full scale -- confirmed too slow to complete within a practical QA timeframe (E5-2); the full forecasts/exclusion counts for this merchant's ~33,000 SKUs were never obtained.",
+    "Olist's AI playbook full narrative -- blocked by E5-2, and a direct-context fallback attempt hit a real, reproducible Gemini 429 error twice; grounding/hallucination behavior for this merchant's AI layer is explicitly Not Observed.",
+    "Ad-kill-switch's automatic evaluation was only tested for the primary merchant -- not exercised for the 10k or Olist merchants.",
+    "RFM's 'some repeat customers but fewer than RFM_K=6' unclustered-fallback code path -- no dataset in this repository naturally produces this condition (the primary merchant has 238 repeat customers; the other 2 have 0 identified customers at all).",
+    "Real cross-currency FX-rate conversion (a historical ExchangeRate lookup actually resolving a non-1.0 rate) -- no dataset in the repository has 2+ distinct currencies within one merchant to exercise this.",
+    "True concurrent/multi-user or multi-merchant simultaneous access patterns -- all testing used a single stub user against merchants tested sequentially.",
+    "XLSX ingestion specifically for the Ecommerce vertical -- documented as a cross-cutting convention (Shakir/Shoaib build prompts) and confirmed supported in code (read_upload_dataframe dispatches on extension), but never exercised with a real .xlsx file in any Ecommerce prompt."
+  ],
+  "section_8_consolidated_issue_table": [
+    {
+      "issue_id": "E1-1",
+      "first_discovered_prompt": 1,
+      "severity": "Medium",
+      "description": "No HTTP route or Celery dispatch path exists for any Ecommerce ingestion source.",
+      "root_cause": "Upload-triggering endpoint was never implemented for any Ecommerce source.",
+      "affected_datasets": [
+        "all 3 tested"
+      ],
+      "affected_endpoints": [
+        "ingestion"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "All ingestion testing (Prompts 2-6) had to use direct function calls; no other endpoint's correctness is affected.",
+      "related_issue_ids": [
+        "E1-2"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/21"
+    },
+    {
+      "issue_id": "E1-2",
+      "first_discovered_prompt": 1,
+      "severity": "Medium",
+      "description": "Olist multi-table adapter exists and is correctly scoped, but is never called from any route or task.",
+      "root_cause": "Adapter built but never wired to a production ingestion flow.",
+      "affected_datasets": [
+        "Olist"
+      ],
+      "affected_endpoints": [
+        "ingestion"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Olist testing (Prompts 2-6) had to invoke the adapter directly, exactly as its own unit tests do.",
+      "related_issue_ids": [
+        "E1-1"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/22"
+    },
+    {
+      "issue_id": "E1-3",
+      "first_discovered_prompt": 1,
+      "severity": "Medium",
+      "description": "Olist adapter discards the real order_status column (and never populates refund_amount), so every ingested Olist order shows status='fulfilled' regardless of its true status.",
+      "root_cause": "flatten_olist_dataset()'s join/flatten step was scoped to only the 3 fields needed for the happy path; order_status was never in scope.",
+      "affected_datasets": [
+        "Olist"
+      ],
+      "affected_endpoints": [
+        "ingestion"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Confirmed via real ingestion (Prompt 2); confirmed NOT to affect dashboard revenue math, any diagnostic, or any predictive/AI endpoint (Prompts 3-6), since none of them branch on Order.status.",
+      "related_issue_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/23"
+    },
+    {
+      "issue_id": "E1-4",
+      "first_discovered_prompt": 1,
+      "severity": "High",
+      "description": "ecommerce_orders_10k_updated.csv's gross_revenue AND unit_price both resolve to the wrong (per-unit 'price', not order-total 'total_price') column via the shared fuzzy 'amount' fallback role.",
+      "root_cause": "_FALLBACK_ROLE maps both fields to the same 'amount' role; the fuzzy matcher takes the first column match with no way to distinguish 'total' from 'unit price' semantics.",
+      "affected_datasets": [
+        "ecommerce_orders_10k_updated.csv"
+      ],
+      "affected_endpoints": [
+        "ingestion",
+        "dashboard/summary",
+        "dashboard/revenue"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Confirmed via real ingestion (Prompt 2) and propagated, correctly-computed-given-bad-input, into this merchant's dashboard figures (Prompt 3). Confirmed NOT to reach any diagnostic/predictive/AI endpoint since this merchant has 0 order_items.",
+      "related_issue_ids": [
+        "E1-6"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/24"
+    },
+    {
+      "issue_id": "E1-5",
+      "first_discovered_prompt": 1,
+      "severity": "Medium",
+      "description": "ecommerce_orders_10k_updated.csv orders get a hardcoded 'NGN' currency despite the file's own country column spanning 15 non-Nigerian countries.",
+      "root_cause": "write_canonical_rows's hardcoded currency fallback applies unconditionally whenever a currency column is absent.",
+      "affected_datasets": [
+        "ecommerce_orders_10k_updated.csv"
+      ],
+      "affected_endpoints": [
+        "ingestion",
+        "dashboard/summary",
+        "dashboard/revenue"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Confirmed via real ingestion (Prompt 2) and propagated into dashboard currency display (Prompt 3). Confirmed not to reach any other endpoint layer.",
+      "related_issue_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/25"
+    },
+    {
+      "issue_id": "E1-6",
+      "first_discovered_prompt": 1,
+      "severity": "Low",
+      "description": "archive (19)/orders.csv's 'Cost Price Per Unit' column cannot be used as a COGS source without a code change, and this file would silently mis-map unit_price if ever ingested.",
+      "root_cause": "Same shared-'amount'-fallback-role gap as E1-4, plus the complete absence of a unit_cogs fallback role.",
+      "affected_datasets": [
+        "archive (19)/orders.csv (excluded from active use)"
+      ],
+      "affected_endpoints": [
+        "N/A -- not ingested"
+      ],
+      "current_status": "Open (informational -- dataset excluded)",
+      "downstream_impact": "None -- documented so a future attempt to use this file for COGS isn't assumed to work without a code change.",
+      "related_issue_ids": [
+        "E1-4"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/26"
+    },
+    {
+      "issue_id": "E2-1",
+      "first_discovered_prompt": 2,
+      "severity": "High",
+      "description": "net_margin (order-level) and unit_net_margin (item-level) silently omit processing_fees and allocated_ad_spend, systematically overstating margin.",
+      "root_cause": "write_canonical_rows's 2 compute_net_margin(...) call sites omit these 2 keyword arguments, despite the function fully supporting them and the values being readily available.",
+      "affected_datasets": [
+        "scanwick_test_ecommerce_orders.csv"
+      ],
+      "affected_endpoints": [
+        "ingestion",
+        "dashboard/sku-matrix",
+        "dashboard/summary (profit_leak_count)",
+        "diagnostic/profit-leaks",
+        "predictive/ad-kill-switch",
+        "ai/playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "The single most far-reaching root cause in this analyzer -- confirmed to propagate through every margin-derived figure across Prompts 3-6 (sku-matrix margin_pct, profit_leak_count, profit-leaks' totals, ad-kill-switch's pause decision, and the AI narrative's quoted net_margin figures).",
+      "related_issue_ids": [
+        "E4-2"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/27"
+    },
+    {
+      "issue_id": "E2-2",
+      "first_discovered_prompt": 2,
+      "severity": "High",
+      "description": "No duplicate-ingestion protection exists -- re-ingesting the same file under the same merchant_id creates a full second set of orders/order_items.",
+      "root_cause": "No dedup mechanism (unique constraint or content hash) designed or implemented anywhere in the ingestion path.",
+      "affected_datasets": [
+        "scanwick_test_ecommerce_orders.csv"
+      ],
+      "affected_endpoints": [
+        "ingestion",
+        "dashboard/summary",
+        "dashboard/revenue",
+        "dashboard/sku-matrix",
+        "diagnostic/profit-leaks",
+        "predictive/rfm-segments",
+        "ai/playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Confirmed to inflate every dashboard/diagnostic figure ~2x for the primary merchant (Prompt 3-4), and precisely quantified in Prompt 5 to zero out RFM's 'New Customers' segment (56/238 customers misclassified). Propagates into every AI-narrative dollar figure (Prompt 6).",
+      "related_issue_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/28"
+    },
+    {
+      "issue_id": "E2-3",
+      "first_discovered_prompt": 2,
+      "severity": "High",
+      "description": "The `returns` table is never populated by any ingestion path -- return-forensics is guaranteed to return empty results for every merchant.",
+      "root_cause": "No ingestion code path anywhere constructs Return rows, despite the model/migration existing and real return-detail source columns being available in at least one dataset.",
+      "affected_datasets": [
+        "all 3"
+      ],
+      "affected_endpoints": [
+        "ingestion",
+        "diagnostic/return-forensics"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Confirmed empty for all 3 merchants at the real endpoint level (Prompt 4). Confirmed NOT to affect any dashboard/predictive/AI endpoint (none reference the Return model).",
+      "related_issue_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/29"
+    },
+    {
+      "issue_id": "E2-4",
+      "first_discovered_prompt": 2,
+      "severity": "Low",
+      "description": "The ingestion-time COGS-missing quality-report warning never fires for datasets with 0 SKU-bearing rows, even though 100% of such a dataset's rows lack COGS data.",
+      "root_cause": "The warning's denominator (total_line_items) is 0 for such datasets, and the 'if total_line_items > 0' guard prevents the warning from firing at all.",
+      "affected_datasets": [
+        "ecommerce_orders_10k_updated.csv"
+      ],
+      "affected_endpoints": [
+        "ingestion"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Same guard shape confirmed recurring in the dashboard/diagnostic layer -- see E3-1.",
+      "related_issue_ids": [
+        "E3-1"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/30"
+    },
+    {
+      "issue_id": "E2-5",
+      "first_discovered_prompt": 2,
+      "severity": "Low",
+      "description": "The SKU-Override tier of the return-cost fallback chain cannot be exercised with any dataset currently in the repository.",
+      "root_cause": "No currently-available dataset carries real per-row return-cost source data.",
+      "affected_datasets": [
+        "all 3"
+      ],
+      "affected_endpoints": [
+        "ingestion"
+      ],
+      "current_status": "Open (Not a Defect -- Confirmed Testability Limitation)",
+      "downstream_impact": "None -- the other 2 tiers were both verified correct with real data.",
+      "related_issue_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/31"
+    },
+    {
+      "issue_id": "E3-1",
+      "first_discovered_prompt": 3,
+      "severity": "Low",
+      "description": "The '0 line items -> not disabled' guard gap (E2-4's ingestion-time pattern) recurs in the dashboard/diagnostic layer's own COGS-coverage check (compute_cogs_coverage).",
+      "root_cause": "Same class of gap as E2-4, in a separate function reused by dashboard/sku-matrix and (embedded) dashboard/summary.",
+      "affected_datasets": [
+        "ecommerce_orders_10k_updated.csv"
+      ],
+      "affected_endpoints": [
+        "dashboard/sku-matrix",
+        "dashboard/summary",
+        "diagnostic/profit-leaks"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Confirmed to recur a further time in diagnostic/profit-leaks directly (Prompt 4) -- same root cause, no new issue logged there.",
+      "related_issue_ids": [
+        "E2-4"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/32"
+    },
+    {
+      "issue_id": "E3-2",
+      "first_discovered_prompt": 3,
+      "severity": "Low",
+      "description": "dashboard/summary's (and diagnostic/dead-stock's) dead_stock_count is wall-clock-relative, making it trend toward 'the entire catalog' for old historical datasets like Olist.",
+      "root_cause": "Intentional, documented design choice (as_of defaults to real wall-clock today) -- not a bug.",
+      "affected_datasets": [
+        "Olist"
+      ],
+      "affected_endpoints": [
+        "dashboard/summary",
+        "diagnostic/dead-stock"
+      ],
+      "current_status": "Open (Not a Defect -- Confirmed Correct/Intentional Design)",
+      "downstream_impact": "Confirmed identically at the diagnostic/dead-stock endpoint itself (Prompt 4). The same architectural pattern (wall-clock 'now') also exists in churn-risk, though it did not produce a confusing result there (Prompt 5).",
+      "related_issue_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/33"
+    },
+    {
+      "issue_id": "E3-3",
+      "first_discovered_prompt": 3,
+      "severity": "Low",
+      "description": "Pre-existing Ecommerce RBAC scaffolding row stored merchant_id in a UUID format inconsistent with the ORM's normal form (same root cause as Bank's B3-4).",
+      "root_cause": "An earlier, unrelated ad-hoc script inserted rows for all 3 verticals via raw SQL in one pass.",
+      "affected_datasets": [],
+      "affected_endpoints": [],
+      "current_status": "Resolved (workaround: 3 new ORM-consistent rows added in Prompt 3, reused through Prompt 6)",
+      "downstream_impact": "None on real application behavior -- test-scaffolding artifact only.",
+      "related_issue_ids": [],
+      "github_issue": null,
+      "github_migration_note": "Not migrated -- status Resolved (test-scaffolding workaround applied, not an application defect)."
+    },
+    {
+      "issue_id": "E4-1",
+      "first_discovered_prompt": 4,
+      "severity": "High",
+      "description": "OrderItem.unit_return_cost persists the raw, unresolved source value (typically null) instead of the actual resolved return cost used to compute that row's own unit_net_margin.",
+      "root_cause": "Variable-shadowing bug in write_canonical_rows: the item_fields dict re-reads row['unit_return_cost'] instead of the local, already-resolved unit_return_cost variable.",
+      "affected_datasets": [
+        "scanwick_test_ecommerce_orders.csv"
+      ],
+      "affected_endpoints": [
+        "ingestion"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Breaks any attempt to audit a stored margin figure against its own displayed inputs. Confirmed NOT to affect any predictive endpoint (none reference OrderItem.unit_return_cost).",
+      "related_issue_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/34"
+    },
+    {
+      "issue_id": "E4-2",
+      "first_discovered_prompt": 4,
+      "severity": "High",
+      "description": "profit-leaks' leak_breakdown/primary_leak_driver omits COGS entirely and includes 4 of its 5 displayed components with zero causal connection to the actual unit_net_margin formula being explained.",
+      "root_cause": "leak_breakdown's 5 components mirror the order-level net_margin formula's full parameter list, but the value actually being explained (unit_net_margin) was computed with a narrower parameter set (only cogs/shipping_cost/return_cost, per E2-1) -- the 2 formulas were never reconciled.",
+      "affected_datasets": [
+        "scanwick_test_ecommerce_orders.csv"
+      ],
+      "affected_endpoints": [
+        "diagnostic/profit-leaks",
+        "ai/playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Confirmed (Prompt 6) to propagate verbatim into AI-generated recommendation text, causing the AI to confidently recommend investigating the wrong root cause (e.g. 'returns cost' or 'shipping cost' when COGS, never shown to the AI, is the true ~93% driver for a real sampled SKU).",
+      "related_issue_ids": [
+        "E2-1"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/35"
+    },
+    {
+      "issue_id": "E4-3",
+      "first_discovered_prompt": 4,
+      "severity": "Low",
+      "description": "dead-stock's total_capital_at_risk reports 0 (not 'unknown') when every dead SKU lacks COGS data, producing a contradictory-looking result (thousands of dead SKUs, supposedly $0 at risk).",
+      "root_cause": "The sum over estimated_carrying_cost filters out None values and defaults to Decimal('0') when all inputs are None -- a distinct code pattern from E2-4/E3-1's boolean-guard shape.",
+      "affected_datasets": [
+        "Olist"
+      ],
+      "affected_endpoints": [
+        "diagnostic/dead-stock"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Could not be evaluated against real AI narrative text for Olist (Prompt 6), since the one real attempt to generate Olist recommendations failed with a 429 (E6-3) before any AI text was produced -- explicitly Not Observed at the AI layer.",
+      "related_issue_ids": [
+        "E2-4",
+        "E3-1"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/36"
+    },
+    {
+      "issue_id": "E5-1",
+      "first_discovered_prompt": 5,
+      "severity": "Medium",
+      "description": "Holt-Winters inventory-forecast predictions are computed correctly (verified directionally sane against real data) but never surfaced in the API response for any dataset, since the current_stock lookup (sku_inventory) is always empty.",
+      "root_cause": "No ingestion path in this repository ever writes to sku_inventory.",
+      "affected_datasets": [
+        "all 3 -- confirmed for primary's 8 real SKUs"
+      ],
+      "affected_endpoints": [
+        "predictive/inventory-forecast",
+        "ai/playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Confirmed (Prompt 6) the AI correctly stays silent on this ungrounded input rather than hallucinating a stockout claim -- a positive confirmation, not a compounding defect.",
+      "related_issue_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/37"
+    },
+    {
+      "issue_id": "E5-2",
+      "first_discovered_prompt": 5,
+      "severity": "Low",
+      "description": "The real inventory-forecast endpoint is impractically slow for merchants with very large SKU catalogs (Olist, ~33,000 distinct SKUs) -- confirmed still actively computing after 12+ minutes, deliberately terminated for QA practicality.",
+      "root_cause": "compute_holt_winters_forecast fits one full ExponentialSmoothing model sequentially per SKU with no batching, parallelization, or early-exit.",
+      "affected_datasets": [
+        "Olist"
+      ],
+      "affected_endpoints": [
+        "predictive/inventory-forecast",
+        "ai/playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Reconfirmed in Prompt 6 (an independent 150-second bounded attempt at the real /ai/playbook endpoint for this merchant also did not complete) -- directly blocks full, real-endpoint AI-layer testing for this merchant.",
+      "related_issue_ids": [
+        "E5-1"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/38"
+    },
+    {
+      "issue_id": "E6-1",
+      "first_discovered_prompt": 6,
+      "severity": "Medium",
+      "description": "AIRecommendation.currency is fabricated ('USD') for every Ecommerce recommendation, since the AI's context contains no currency information at all despite the real data being 100% NGN.",
+      "root_cause": "None of the 3 context-building functions (compute_profit_leaks/compute_dead_stock/compute_inventory_forecast) thread the merchant's real original_currency into their output shapes.",
+      "affected_datasets": [
+        "scanwick_test_ecommerce_orders.csv"
+      ],
+      "affected_endpoints": [
+        "ai/playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Every dollar figure in every Ecommerce AI recommendation is mislabeled by currency.",
+      "related_issue_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/39"
+    },
+    {
+      "issue_id": "E6-2",
+      "first_discovered_prompt": 6,
+      "severity": "Low",
+      "description": "AIRecommendation.created_at is fabricated (a placeholder date) for every Ecommerce recommendation -- the same pattern already confirmed cross-vertical in Bank's B6-3.",
+      "root_cause": "Shared with Bank's B6-3 -- the shared _PROMPT_TEMPLATE (recommendation_generation.py) never supplies the model with the real current date/time.",
+      "affected_datasets": [
+        "scanwick_test_ecommerce_orders.csv"
+      ],
+      "affected_endpoints": [
+        "ai/playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "No active consequence today; confirms the root cause is a shared, cross-vertical gap, not Ecommerce-specific.",
+      "related_issue_ids": [
+        "Bank B6-3 (external tracker)"
+      ],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/40"
+    },
+    {
+      "issue_id": "E6-3",
+      "first_discovered_prompt": 6,
+      "severity": "Medium",
+      "description": "A real Gemini 429 (rate-limit) error was encountered twice live during testing and is not retried at all, despite 429 being a transient condition where a retry would likely succeed.",
+      "root_cause": "ai_client.py's status-code-based retry classification groups all 4xx codes (including 429) as non-retryable 'client errors.'",
+      "affected_datasets": [
+        "Olist"
+      ],
+      "affected_endpoints": [
+        "ai/playbook"
+      ],
+      "current_status": "Open",
+      "downstream_impact": "Confirmed the failure degrades gracefully (empty recommendations, no crash) -- a positive finding -- but blocked grounding verification for the Olist merchant's AI layer entirely.",
+      "related_issue_ids": [],
+      "github_issue": "https://github.com/scanwickdev/scanwick/issues/41"
+    }
+  ],
+  "section_9_root_cause_groups": [
+    {
+      "group": "No production trigger paths for ingestion (contrast: predictive layer's ad-kill-switch IS properly wired)",
+      "related_issues": [
+        "E1-1",
+        "E1-2"
+      ],
+      "explanation": "No route or Celery dispatch exists for any Ecommerce ingestion source, forcing every subsequent prompt (2-6) to use direct function calls. Notably, this is NOT a repository-wide pattern -- Prompt 5 confirmed ad-kill-switch's automatic evaluation IS genuinely wired to a real Celery beat schedule, showing the gap is specific to ingestion, not systemic."
+    },
+    {
+      "group": "Column-mapping/fallback-role ambiguity",
+      "related_issues": [
+        "E1-4",
+        "E1-6"
+      ],
+      "explanation": "The shared 'amount' fuzzy-fallback role cannot distinguish an order-total column from a per-unit-price column, silently mis-mapping gross_revenue/unit_price to the same (sometimes wrong) column whenever a dataset's literal headers don't match. Confirmed to affect 2 different datasets (the 10k file, actively ingested; archive (19)/orders.csv, correctly excluded as a result of this exact finding)."
+    },
+    {
+      "group": "Olist adapter data-fidelity gap",
+      "related_issues": [
+        "E1-3"
+      ],
+      "explanation": "The Olist adapter's flatten step was scoped only to the fields needed for its happy path, discarding order_status entirely. Confirmed harmless to every endpoint tested (none branch on Order.status) -- an isolated, contained gap."
+    },
+    {
+      "group": "Margin/COGS formula incompleteness -- the single most far-reaching root cause in this analyzer",
+      "related_issues": [
+        "E2-1",
+        "E4-2"
+      ],
+      "explanation": "net_margin/unit_net_margin's incomplete formula (E2-1, missing 2 real cost fields) was first found at ingestion time, then traced through Prompt 3 (sku-matrix margin_pct, dashboard's profit_leak_count), Prompt 4 (profit-leaks' own totals, plus the closely-related but distinct E4-2 finding that leak_breakdown/primary_leak_driver excludes COGS -- the TRUE dominant cost -- entirely), Prompt 5 (ad-kill-switch's pause decision), and Prompt 6 (the AI narrative confidently misattributing root causes). A single incomplete formula at ingestion time cascades through every subsequent layer of the analyzer."
+    },
+    {
+      "group": "Duplicate ingestion, no protection -- the second most far-reaching root cause",
+      "related_issues": [
+        "E2-2"
+      ],
+      "explanation": "First confirmed in Prompt 2 via a deliberate re-ingestion test, this single gap was then traced through Prompt 3 (all dashboard figures ~2x), Prompt 4 (all diagnostic totals ~2x), Prompt 5 (precisely quantified to zero out RFM's New Customers segment via an even-frequency-only distribution), and Prompt 6 (every AI-quoted dollar figure). No single issue in this analyzer was confirmed to touch more downstream layers with more precisely-quantified effects."
+    },
+    {
+      "group": "Returns subsystem never wired end-to-end",
+      "related_issues": [
+        "E2-3"
+      ],
+      "explanation": "The Return model/migration exist and a real diagnostic (return-forensics) is built to read from it, but no ingestion path anywhere ever writes to it. Confirmed to make that one diagnostic permanently non-functional with real data, and confirmed to have zero effect on any other endpoint (dashboard/predictive/AI never reference the Return model)."
+    },
+    {
+      "group": "Zero-data ambiguity / '0 total -> not disabled' guard pattern",
+      "related_issues": [
+        "E2-4",
+        "E3-1"
+      ],
+      "explanation": "A divide-by-zero guard (correct in isolation) at the ingestion-time quality report (E2-4) was found to recur in a separate, dashboard/diagnostic-layer function (compute_cogs_coverage, E3-1) reused by sku-matrix, dashboard/summary's embedded profit_leak_count, and profit-leaks directly. Confirmed NOT to be a general repository pattern -- predictive endpoints use entirely different minimum-data concepts (weeks_of_history, RFM_K, event_observed) unrelated to COGS coverage, and the COGS-coverage mechanism itself is confirmed to fire correctly at genuine non-zero threshold-crossing percentages (Olist's 100% missing case, throughout Prompts 3-6)."
+    },
+    {
+      "group": "Return-cost fallback chain and its persistence",
+      "related_issues": [
+        "E2-5",
+        "E4-1"
+      ],
+      "explanation": "The 3-tier return-cost fallback (SKU Override -> Merchant Default -> Zero) was verified correct for 2 of 3 tiers in Prompt 2 using real merchant configuration (E2-5 notes the 3rd tier's testability limit, not a defect). Prompt 4 then found a distinct, real defect on the same mechanism: the resolved value is used correctly for margin calculation but never correctly persisted to its own display column (E4-1)."
+    },
+    {
+      "group": "dead-stock's wall-clock relativity and zero/unknown ambiguity",
+      "related_issues": [
+        "E3-2",
+        "E4-3"
+      ],
+      "explanation": "dead-stock's design deliberately compares stored dates against real wall-clock 'now' (E3-2, confirmed intentional, not a bug) -- for an old historical dataset like Olist, this makes nearly the entire catalog register as dead stock. Compounding this, when 100% of those dead SKUs also lack COGS data, the reported total_capital_at_risk defaults to 0 rather than an explicit unknown state (E4-3) -- two related but independently-discovered gaps on the same diagnostic."
+    },
+    {
+      "group": "Holt-Winters/inventory-forecast: computed-but-invisible, and slow at scale",
+      "related_issues": [
+        "E5-1",
+        "E5-2"
+      ],
+      "explanation": "The forecasting model itself works correctly (verified directionally sane against real data), but its output is unconditionally suppressed by the always-empty sku_inventory table (E5-1) and, independently, the per-SKU fitting loop has no batching/parallelization, making the endpoint impractically slow for a merchant with Olist's real catalog size (E5-2) -- confirmed twice, in Prompts 5 and 6, to block full testing of this merchant."
+    },
+    {
+      "group": "Shared AI/Gemini integration: field grounding and reliability",
+      "related_issues": [
+        "E6-1",
+        "E6-2",
+        "E6-3"
+      ],
+      "explanation": "3 distinct AI-layer gaps, all traced to the shared, cross-vertical AI infrastructure (recommendation_generation.py/ai_client.py) rather than Ecommerce-specific code: 2 schema-required fields (currency, created_at) are fabricated whenever the context provides no real anchor, and HTTP 429 responses are treated as non-retryable despite being a transient, retry-appropriate condition. `created_at`'s root cause was independently confirmed to be identical to Bank's own B6-3 finding, cross-vertical evidence that this class of gap is systemic to the shared module, not vertical-specific."
+    },
+    {
+      "group": "Test-environment scaffolding (not an application defect)",
+      "related_issues": [
+        "E3-3"
+      ],
+      "explanation": "A malformed RBAC row from an earlier, unrelated ad-hoc script (same root cause as Bank's B3-4) caused a 403 during Prompt 3 setup. Resolved by adding correct rows alongside it; has no bearing on real application behavior."
+    }
+  ],
+  "section_10_overall_statistics": {
+    "critical": 0,
+    "high": 6,
+    "medium": 7,
+    "low": 9,
+    "resolved": 1,
+    "partially_resolved": 0,
+    "open": 21
+  },
+  "section_11_integration_recommendations": [
+    "Verify duplicate-ingestion behavior (E2-2) under true multi-merchant integration conditions -- this QA pass only observed it via one deliberate, single-merchant re-ingestion; confirm the same full-reinsert behavior and its cascading effect on RFM/dashboard/diagnostic/AI figures holds across merchant boundaries.",
+    "Verify dashboard/diagnostic/predictive/AI margin figures for the primary merchant against any independent reconciliation source, given E2-1's confirmed, far-reaching propagation through sku-matrix, profit-leaks, ad-kill-switch, and the AI narrative.",
+    "Cross-check whether Bank and/or Sales' own AI playbook endpoints share the same currency-fabrication (E6-1) and created_at-fabrication (E6-2, confirmed already present in Bank's B6-3) patterns, and whether either also hits the 429-not-retried gap (E6-3) -- all 3 are rooted in shared, cross-vertical code (recommendation_generation.py/ai_client.py), not Ecommerce-specific.",
+    "If any integration flow depends on RFM segment stability, confirm E2-2's precisely-quantified 'New Customers always empty' effect doesn't silently corrupt any cross-analyzer customer-lifecycle logic that assumes this segment is populated for merchants with genuine first-time buyers.",
+    "If any integration flow surfaces inventory-forecast data to an end user, confirm whether E5-1 (predictions never visible due to empty sku_inventory) is expected/acceptable for the integration's target merchants, or whether a stock-level ingestion path needs to be prioritized first.",
+    "If Integration Testing includes very-large-catalog merchants, budget for E5-2's confirmed multi-minute-plus latency on the real inventory-forecast endpoint (and its embedding in the AI playbook) -- consider whether a timeout/pagination strategy is needed before this is exposed to real users.",
+    "Confirm return-forensics' permanent empty-result state (E2-3) is either accepted as a known limitation for the integration's target merchants, or that a Return-row-writing path is prioritized first, since no current ingestion path can ever populate it.",
+    "If multi-currency merchants are in scope for Integration Testing, confirm real cross-currency FX-rate conversion (never exercised in this QA pass -- no dataset had 2+ currencies for one merchant) actually resolves a real historical rate rather than silently nulling the conversion fields."
+  ],
+  "section_12_overall_verdict": "READY WITH OPEN ISSUES",
+  "section_13_executive_summary": {
+    "strengths": "Every calculation layer's own arithmetic was independently verified correct with zero mismatches across all 6 prompts -- ingestion row counts, dashboard aggregations (including a non-trivial non-calendar-aligned change_pct calculation), diagnostic totals, Holt-Winters forecasts, RFM clustering (deterministic, exhaustive, non-duplicating), churn-risk's Kaplan-Meier edge case, ad-kill-switch's real decision logic, and the AI layer's factual grounding (zero hallucinated business facts across every recommendation checked). The repository's own build-completeness is strong: all specification-named features across every prompt (ingestion sources, 3 dashboard endpoints, 3 diagnostics, 4 predictive features, 1 AI endpoint) are genuinely implemented, and ad-kill-switch's automatic evaluation is properly production-wired via a real Celery beat schedule.",
+    "remaining_risks": "6 High-severity issues remain fully open: an incomplete margin formula (E2-1) that cascades through nearly every downstream figure; no duplicate-ingestion protection (E2-2) with a precisely-quantified, multi-layer corrupting effect; a completely unwired returns subsystem (E2-3); a data-persistence bug that breaks margin auditability (E4-1); and a diagnostic explanatory field (E4-2) that can never correctly identify COGS as a leak's true cause, which the AI layer then confidently repeats to a decision-maker. None of these are calculation-layer bugs -- they are upstream data-completeness or field-design gaps whose downstream arithmetic is, in every case checked, internally consistent given the (incomplete) inputs.",
+    "production_readiness": "The Ecommerce Analyzer's computational core is sound and trustworthy for what it actually computes; the open issues are about what data reaches that core (COGS/return-cost gaps, missing returns/stock tables) and what the AI layer is told (missing currency, misleading root-cause fields) rather than arithmetic correctness. A production rollout should not proceed for any merchant relying on profit-leak root-cause guidance, return-forensics, or inventory-forecast stockout dates without addressing E4-2, E2-3, and E5-1 respectively -- but dashboards, diagnostics, and predictive scoring/segmentation are trustworthy as computed.",
+    "major_blockers": "None are true blockers to proceeding into Integration Testing -- every issue degrades gracefully (no crashes observed anywhere across 6 prompts), and the Olist-scale performance finding (E5-2) is a scalability characteristic to plan around, not a defect to fix before integration. The 6 High-severity issues should be prioritized for a remediation pass before any real merchant-facing launch, but do not block the next QA phase.",
+    "confidence_level": "High confidence in this report's own conclusions -- every finding across all 6 prompts was independently verified via SQL, direct function calls, or exact-match recomputation against real data (never assumed from documentation or endpoint output alone), and every issue's downstream propagation (or confirmed non-propagation) into subsequent prompts was explicitly checked with evidence rather than inferred."
+  },
+  "traceability_note": "All 22 issue IDs (E1-1 through E6-3) are preserved exactly as first assigned in Prompts 1-6's own JSON/QA_ISSUES.md records -- none renamed, renumbered, or silently merged. Related issues are cross-referenced via related_issue_ids in section 8 and grouped by shared root cause in section 9.",
+  "github_issues_migration_note": "All Open issues from this report were migrated to GitHub Issues on 2026-07-11 (see testing/ecommerce/QA_ISSUES_ARCHIVED.md). Each issue above carries its GitHub Issue URL in the github_issue field; issues not migrated (Resolved/non-defect entries) carry a github_migration_note explaining why."
+}

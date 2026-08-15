@@ -1,0 +1,46 @@
+{
+  "analyzer": "ecommerce",
+  "prompt_number": 3,
+  "prompt_name": "Dashboard Endpoint Testing",
+  "dataset_name": "Olist multi-table set (via ecommerce_olist_adapter.py)",
+  "merchant_id_tested": "33333333-3333-3333-3333-333333333333",
+  "rbac_setup": "Inserted one new, ORM-consistent UserMerchantRole row for this merchant (no pre-existing row existed).",
+  "response_envelope_verification": {"all_3_endpoints": "Confirmed exact {success, data, meta:{...}} shape, including a correctly-populated disabled_features array for 2 of the 3 endpoints (see below).", "schema_compliant": true},
+  "dashboard_summary_verification": {
+    "endpoint_returned": {
+      "period": {"start": "2016-09-04", "end": "2018-09-03"},
+      "gross_revenue": 13591643.7,
+      "net_revenue": 11339734.16,
+      "total_orders": 112650,
+      "avg_order_value": 120.65,
+      "profit_leak_count": null,
+      "dead_stock_count": 32951,
+      "disabled_features": [{"feature_name": "profit_leak_detector", "reason": "COGS is missing for 100.0% of line items (exceeds the 20% threshold).", "data_needed": "unit_cogs on order_items"}]
+    },
+    "independently_recomputed": {"gross_revenue": "13591643.7000", "net_revenue": "11339734.1600", "total_orders": 112650, "avg_order_value": 120.65, "profit_leaks_disabled_via_direct_call": true, "dead_sku_count_via_direct_call": 32951},
+    "match": true,
+    "disabled_features_threshold_confirmation": "100.0% of this merchant's 112,650 order_items are missing unit_cogs (confirmed via Prompt 1/2 -- Olist has no cost data anywhere), correctly exceeding the 20% threshold and correctly triggering the profit_leak_detector disabled_features entry with the exact percentage and reason text. This is the same 20% threshold already documented for the ingestion-time quality report (COGS_MISSING_DISABLE_THRESHOLD_PCT, ecommerce_ingestion.py:25, re-declared identically as ecommerce_order_items.py's own COGS_MISSING_DISABLE_THRESHOLD_PCT)."
+  },
+  "dead_stock_count_interpretive_finding": {
+    "value": 32951,
+    "finding": "This number exactly equals Olist's real distinct-product count (olist_products_dataset.csv has 32,951 rows). Traced to compute_dead_stock's as_of parameter defaulting to real wall-clock 'today' rather than any dataset-relative date -- since Olist's real order history ends 2018-09-03 (confirmed in Prompt 1/2), every one of its SKUs trivially exceeds the 60-day dead-stock threshold relative to the actual test-execution date, making essentially the entire real catalog register as 'dead stock.' Confirmed correct, intentional (wall-clock-relative) behavior via code reading, not a bug -- new issue E3-2 logged as an interpretive caveat for anyone reading this figure, and explicitly to prevent Prompt 4's dedicated dead-stock testing from re-deriving this same observation as if it were new."
+  },
+  "dashboard_revenue_verification": {
+    "endpoint_returned": {"gross_revenue": 13591643.7, "net_revenue": 11339734.16, "gap": 2251909.54, "gap_breakdown": {"returns": 0, "discounts": 0, "shipping": 2251909.54, "processing": 0, "ad_spend": 0}, "monthly_trend_month_count": 24},
+    "independently_recomputed": {"gross_revenue": "13591643.7000", "net_revenue": "11339734.1600", "gap_breakdown": {"returns": "0", "discounts": "0", "shipping": "2251909.5400", "processing": "0", "ad_spend": "0"}, "monthly_trend_first_3_months": [{"month": "2016-09", "gross": "267.3600", "net": "179.9700"}, {"month": "2016-10", "gross": "49507.6600", "net": "42206.4800"}, {"month": "2016-12", "gross": "10.9000", "net": "2.1800"}], "monthly_trend_month_count": 24},
+    "match": true,
+    "gap_breakdown_note": "Only 'shipping' is non-zero (from Olist's real freight_value column, correctly mapped by the adapter) -- returns/discounts/processing/ad_spend are all 0 since Olist has no such source data and the adapter correctly never fabricates any of them.",
+    "status_exclusion_check": "Confirmed via code reading (fetch_orders_in_range/aggregate_order_list never reference Order.status) that E1-3 (all 112,650 Olist orders show status='fulfilled' regardless of their real Olist order_status) has NO effect on this revenue calculation -- referenced, not re-tested as a new concern."
+  },
+  "dashboard_sku_matrix_verification": {
+    "endpoint_returned": {"data": null, "disabled_features": [{"feature_name": "sku_matrix", "reason": "COGS is missing for 100.0% of line items (exceeds the 20% threshold).", "data_needed": "unit_cogs on order_items"}]},
+    "independently_recomputed_via_direct_compute_sku_matrix_call": {"disabled": true, "coverage_missing_pct": 100.0},
+    "match": true,
+    "finding": "Correctly disabled -- contrast with the 10k dataset's E3-1 finding: this endpoint DOES correctly disable here because total_line_items=112,650 (> 0), so the 'total > 0' guard is satisfied and the real 100%-missing condition correctly triggers the explicit disabled_features signal. This confirms E3-1 is specifically a 0-line-item edge case, not a general failure of the disabled_features mechanism."
+  },
+  "issues_found": [],
+  "issues_referenced_not_duplicated": ["E1-3 (confirmed not applicable to revenue math)", "E2-1 (not applicable -- this merchant has no unit_cogs/unit_net_margin data at all, sku-matrix correctly disabled before reaching any margin calculation)", "E3-2 (new issue, first observed for this dataset)"],
+  "status": "pass_with_issues",
+  "summary": "All 3 dashboard endpoints return correct, schema-compliant output for this merchant, with 0 arithmetic mismatches against independent recomputation. The 20%-COGS-missing disabled_features threshold correctly fires for both profit_leak_detector and sku_matrix at the real 100% missing rate. One new, non-defect interpretive finding: dead_stock_count (32,951) is wall-clock-relative and trivially matches this dataset's entire real product catalog, since Olist's real dates are ~8 years in the past relative to the test-execution date (E3-2).",
+  "can_proceed_to_prompt_4": true
+}

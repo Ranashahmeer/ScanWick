@@ -1,0 +1,19 @@
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # TanStack Router does client-side routing -- any path that isn't a
+    # real static file (e.g. a direct load of /reports or a page refresh)
+    # must still serve index.html and let the JS router take over, or it
+    # 404s at the nginx layer instead of rendering the app.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
