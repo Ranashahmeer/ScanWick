@@ -84,11 +84,11 @@ function ContactSection() {
 }
 
 export function ContactPage() {
-  const { theme, toggleTheme } = useScanwickChrome();
+  const { theme } = useScanwickChrome();
 
   return (
     <main className={`scanwick-page ${theme === "light" ? "theme-light" : ""}`}>
-      <Header theme={theme} onToggleTheme={toggleTheme} />
+      <Header />
 
       <ContactSection />
 

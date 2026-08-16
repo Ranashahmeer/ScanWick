@@ -178,13 +178,13 @@ function ComingSoonView({ slug }: { slug: string }) {
 }
 
 export function BlogPostPage() {
-  const { theme, toggleTheme } = useScanwickChrome();
+  const { theme } = useScanwickChrome();
   const { slug } = useParams({ from: "/blog/$slug" });
   const hasFullPost = Boolean(fullPosts[slug]);
 
   return (
     <main className={`scanwick-page blog-page ${theme === "light" ? "theme-light" : ""}`}>
-      <Header theme={theme} onToggleTheme={toggleTheme} />
+      <Header />
 
       {hasFullPost ? <FullPostView slug={slug} /> : <ComingSoonView slug={slug} />}
 

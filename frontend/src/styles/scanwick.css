@@ -1,0 +1,1238 @@
+/* ==========================================================================
+   Scanwick product design system
+   --------------------------------------------------------------------------
+   A literal transcription of the tokens and primitives in the Scanwick
+   Product Prototype. Everything is scoped under `.sw` so it cannot collide
+   with the pre-existing `fi-*` / `scanwick-*` / Tailwind layers that the
+   not-yet-converted screens still rely on.
+
+   Inside a `.sw` subtree the class names are exactly the prototype's own
+   (`card`, `btn`, `pill`, `row r4`, `kpi`, `na`, …) so the markup here and
+   the markup in the prototype read the same. Anything added beyond the
+   prototype is either (a) responsive behaviour, which the prototype does
+   not specify but the product requires, or (b) interaction states (hover,
+   focus, disabled) that the prototype describes in prose.
+   ========================================================================== */
+
+.sw {
+  --g900: #00220f;
+  --g800: #00361c;
+  --g700: #0a4a2a;
+  --g600: #12603a;
+  --g500: #1b7a4b;
+  --g300: #7fc7a3;
+  --g100: #dcefe4;
+  --g50: #f1f8f4;
+  --ink: #0e1512;
+  --ink2: #3e4a44;
+  --ink3: #6b7a72;
+  --line: #dce3df;
+  --bg: #f7f9f8;
+  --white: #fff;
+  --warn: #b45309;
+  --warnbg: #fef6e7;
+  --stop: #9b2c2c;
+  --stopbg: #fdecec;
+  --info: #1d4ed8;
+  --infobg: #eef3ff;
+  --r: 10px;
+  --sh: 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.04);
+  --f: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  font-family: var(--f);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sw *,
+.sw *::before,
+.sw *::after {
+  box-sizing: border-box;
+}
+
+.sw h1,
+.sw h2,
+.sw h3,
+.sw h4,
+.sw p,
+.sw ul,
+.sw ol,
+.sw figure {
+  margin: 0;
+  padding: 0;
+}
+
+.sw ul,
+.sw ol {
+  list-style-position: outside;
+}
+
+.sw a {
+  color: inherit;
+}
+
+/* ---------- shell ------------------------------------------------------- */
+
+.sw-wrap {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sw .side {
+  width: 268px;
+  flex: 0 0 268px;
+  background: var(--g900);
+  color: #cfe0d6;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 20px 0 60px;
+}
+
+.sw .side .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 14px;
+}
+
+.sw .side .brand .mk {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: var(--g300);
+  display: grid;
+  place-items: center;
+  color: var(--g900);
+  font-weight: 800;
+  font-size: 15px;
+  flex: 0 0 auto;
+}
+
+.sw .side .brand b {
+  color: #fff;
+  font-size: 15px;
+  letter-spacing: -0.2px;
+}
+
+.sw .side .brand span {
+  display: block;
+  font-size: 10px;
+  color: #7fa791;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.sw .grp {
+  padding: 14px 20px 6px;
+  font-size: 10px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: #6e9a81;
+  font-weight: 700;
+}
+
+.sw .side a,
+.sw .side .navitem {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 7px 20px;
+  color: #cfe0d6;
+  text-decoration: none;
+  font-size: 12.8px;
+  border-left: 3px solid transparent;
+  width: 100%;
+  background: none;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  text-align: left;
+  font-family: var(--f);
+  cursor: pointer;
+}
+
+.sw .side a:hover,
+.sw .side .navitem:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.sw .side a.on,
+.sw .side .navitem.on {
+  background: rgba(127, 199, 163, 0.13);
+  border-left-color: var(--g300);
+  color: #fff;
+  font-weight: 600;
+}
+
+.sw .side .navitem:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sw .side .navitem:disabled:hover {
+  background: none;
+  color: #cfe0d6;
+}
+
+.sw .side a i,
+.sw .side .navitem i {
+  font-style: normal;
+  width: 20px;
+  font-size: 10px;
+  color: #6e9a81;
+  font-family: var(--mono);
+  flex: 0 0 20px;
+}
+
+.sw .main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- screen frame ------------------------------------------------ */
+
+.sw .scr {
+  padding: 26px 34px 70px;
+  max-width: 1240px;
+}
+
+.sw .scrhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 22px;
+}
+
+.sw .scrhead h1 {
+  font-size: 20px;
+  letter-spacing: -0.4px;
+  margin-bottom: 3px;
+  font-weight: 700;
+}
+
+.sw .scrhead .meta {
+  font-size: 12px;
+  color: var(--ink3);
+}
+
+.sw .tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 20px;
+  background: var(--g100);
+  color: var(--g700);
+  white-space: nowrap;
+}
+
+.sw .tag.s2 {
+  background: #e8eefb;
+  color: #1d4ed8;
+}
+
+.sw .tag.s3 {
+  background: #f3eafb;
+  color: #6b21a8;
+}
+
+.sw .tag.sys {
+  background: #efefef;
+  color: #444;
+}
+
+.sw .tag.pub {
+  background: #fff3e0;
+  color: #8a5200;
+}
+
+/* ---------- primitives -------------------------------------------------- */
+
+.sw .card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 18px;
+  box-shadow: var(--sh);
+}
+
+.sw .card h3 {
+  font-size: 13px;
+  margin-bottom: 2px;
+  letter-spacing: -0.1px;
+  font-weight: 700;
+}
+
+.sw .card .sub {
+  font-size: 11.5px;
+  color: var(--ink3);
+  margin-bottom: 14px;
+}
+
+.sw .row {
+  display: grid;
+  gap: 16px;
+}
+
+.sw .r2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.sw .r3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.sw .r4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.sw .r21 {
+  grid-template-columns: 2fr 1fr;
+}
+
+.sw .r12 {
+  grid-template-columns: 1fr 2fr;
+}
+
+.sw .kpi .lab {
+  font-size: 11px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.sw .kpi .val {
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  margin: 5px 0 2px;
+}
+
+.sw .kpi .dt {
+  font-size: 11.5px;
+  color: var(--ink3);
+}
+
+.sw .up {
+  color: var(--g600);
+  font-weight: 600;
+}
+
+.sw .dn {
+  color: var(--stop);
+  font-weight: 600;
+}
+
+/* ---------- tables ------------------------------------------------------ */
+
+.sw table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.sw th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ink3);
+  font-weight: 700;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--g50);
+}
+
+.sw td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #eef2f0;
+  vertical-align: top;
+}
+
+.sw tr:last-child td {
+  border-bottom: 0;
+}
+
+.sw td.num,
+.sw th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* A dense table (lender/audit surfaces) may exceed a narrow viewport. It
+   scrolls inside its own box rather than pushing the page sideways. */
+.sw .tbl {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---------- buttons ----------------------------------------------------- */
+
+.sw .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--g800);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 15px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--f);
+  text-decoration: none;
+  line-height: 1.35;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.sw .btn:hover {
+  background: var(--g700);
+}
+
+.sw .btn:focus-visible {
+  outline: 2px solid var(--g500);
+  outline-offset: 2px;
+}
+
+.sw .btn.sec {
+  background: #fff;
+  color: var(--g800);
+  border: 1px solid var(--line);
+}
+
+.sw .btn.sec:hover {
+  background: var(--g50);
+  border-color: var(--g300);
+}
+
+.sw .btn.gho {
+  background: transparent;
+  color: var(--ink2);
+  border: 1px solid var(--line);
+}
+
+.sw .btn.gho:hover {
+  background: var(--g50);
+  color: var(--ink);
+  border-color: var(--g300);
+}
+
+.sw .btn.sm {
+  padding: 6px 11px;
+  font-size: 11.5px;
+}
+
+.sw .btn.dgr {
+  background: #fff;
+  color: var(--stop);
+  border: 1px solid #e9c6c6;
+}
+
+.sw .btn.dgr:hover {
+  background: var(--stopbg);
+}
+
+.sw .btn:disabled,
+.sw .btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sw .btn:disabled:hover {
+  background: var(--g800);
+}
+
+.sw .btn.sec:disabled:hover,
+.sw .btn.gho:disabled:hover,
+.sw .btn.dgr:disabled:hover {
+  background: transparent;
+}
+
+.sw .btn.blk {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ---------- pills, chips, severities ------------------------------------ */
+
+.sw .pill {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2.5px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.sw .pill.a {
+  background: var(--g100);
+  color: var(--g700);
+}
+
+.sw .pill.b {
+  background: #e8eefb;
+  color: #1d4ed8;
+}
+
+.sw .pill.c {
+  background: var(--warnbg);
+  color: var(--warn);
+}
+
+.sw .pill.d {
+  background: var(--stopbg);
+  color: var(--stop);
+}
+
+.sw .pill.n {
+  background: #efefef;
+  color: #555;
+}
+
+/* The unavailable chip. PRD rule: never a zero, never a dash, never blank. */
+.sw .na {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--warn);
+  background: var(--warnbg);
+  border: 1px dashed #e4c77e;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-family: var(--f);
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.sw .na[title] {
+  cursor: help;
+}
+
+.sw .sev {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+  flex: 0 0 8px;
+}
+
+.sw .sev.i {
+  background: #9aa6a0;
+}
+
+.sw .sev.w {
+  background: #d4a72c;
+}
+
+.sw .sev.a {
+  background: #d97706;
+}
+
+.sw .sev.u {
+  background: #b91c1c;
+}
+
+/* ---------- bars, sparks, meters ---------------------------------------- */
+
+.sw .bar {
+  height: 7px;
+  border-radius: 6px;
+  background: #edf2ef;
+  overflow: hidden;
+}
+
+.sw .bar i {
+  display: block;
+  height: 100%;
+  background: var(--g500);
+  border-radius: 6px;
+}
+
+.sw .spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 44px;
+}
+
+.sw .spark i {
+  flex: 1;
+  background: var(--g300);
+  border-radius: 2px 2px 0 0;
+  display: block;
+}
+
+.sw .legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--ink3);
+  margin-top: 10px;
+}
+
+.sw .swatch {
+  height: 56px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* ---------- forms ------------------------------------------------------- */
+
+.sw .field {
+  margin-bottom: 13px;
+}
+
+.sw .field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink2);
+  margin-bottom: 5px;
+}
+
+.sw .inp {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: var(--f);
+  background: #fff;
+  color: var(--ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sw .inp::placeholder {
+  color: var(--ink3);
+}
+
+.sw .inp:focus {
+  outline: none;
+  border-color: var(--g500);
+  box-shadow: 0 0 0 3px rgba(27, 122, 75, 0.12);
+}
+
+.sw .inp:disabled {
+  background: var(--g50);
+  color: var(--ink3);
+  cursor: not-allowed;
+}
+
+.sw .inp.err {
+  border-color: var(--stop);
+}
+
+.sw .inp.err:focus {
+  box-shadow: 0 0 0 3px rgba(155, 44, 44, 0.12);
+}
+
+.sw select.inp {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236B7A72' d='M6 8 0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.sw textarea.inp {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.6;
+}
+
+.sw input[type="checkbox"],
+.sw input[type="radio"] {
+  accent-color: var(--g600);
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+/* Validation message. The prototype specifies inline, below the field, and
+   non-blocking until submit. */
+.sw .errmsg {
+  font-size: 11px;
+  color: var(--stop);
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.sw .hint {
+  font-size: 11px;
+  color: var(--ink3);
+  margin-top: 4px;
+}
+
+.sw .mono {
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.sw .trace {
+  border-left: 2px solid var(--g300);
+  padding-left: 12px;
+  margin-top: 8px;
+}
+
+.sw .src {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 3px 10px 3px 4px;
+}
+
+.sw .src b {
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--g700);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 8.5px;
+  font-weight: 700;
+  flex: 0 0 19px;
+}
+
+.sw .stepper {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+}
+
+.sw .stepper div {
+  flex: 1;
+  padding: 9px 12px;
+  font-size: 11.5px;
+  border-bottom: 3px solid var(--line);
+  color: var(--ink3);
+}
+
+.sw .stepper div.on {
+  border-bottom-color: var(--g600);
+  color: var(--g800);
+  font-weight: 700;
+}
+
+.sw .stepper div.done {
+  border-bottom-color: var(--g300);
+  color: var(--g600);
+}
+
+.sw .ph {
+  background: repeating-linear-gradient(45deg, #f4f7f5, #f4f7f5 8px, #edf2ef 8px, #edf2ef 16px);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--ink3);
+  font-size: 11.5px;
+  text-align: center;
+  padding: 8px;
+}
+
+.sw .ph.pick {
+  background: #fff;
+  border-style: solid;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sw .ph.pick:hover {
+  border-color: var(--g500);
+  box-shadow: 0 0 0 3px rgba(27, 122, 75, 0.08);
+}
+
+.sw .ph.pick.on {
+  border-color: var(--g600);
+  box-shadow: 0 0 0 3px rgba(27, 122, 75, 0.14);
+}
+
+.sw .mob {
+  width: 300px;
+  border: 9px solid #12211a;
+  border-radius: 30px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: var(--sh);
+}
+
+.sw .mob .bar2 {
+  height: 22px;
+  background: var(--g900);
+}
+
+.sw code {
+  background: #f1f5f3;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+/* ---------- loading skeletons (prototype screen 70) --------------------- */
+
+.sw .sk {
+  background: #edf2ef;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.sw .sk::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: sw-shimmer 1.2s infinite;
+}
+
+.sw .sk.lg {
+  background: #e4eae7;
+  border-radius: 5px;
+}
+
+.sw .sk.txt {
+  background: #f2f6f4;
+}
+
+@keyframes sw-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw .sk::after {
+    animation: none;
+  }
+}
+
+/* ---------- drill-down panel (traceability) ----------------------------- */
+
+.sw .drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 21, 18, 0.42);
+  z-index: 60;
+  animation: sw-fade 0.15s ease;
+}
+
+.sw .drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(620px, 100%);
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  z-index: 61;
+  overflow-y: auto;
+  padding: 20px 24px 40px;
+  animation: sw-slide 0.18s ease;
+}
+
+.sw .drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+
+.sw .drawer-head h2 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+@keyframes sw-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sw-slide {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw .drawer,
+  .sw .drawer-scrim {
+    animation: none;
+  }
+}
+
+/* ---------- app topbar (authenticated shell) ---------------------------- */
+
+.sw .topbar {
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 18px;
+  background: var(--g900);
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.sw .topbar .brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.sw .topbar .mk {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--g300);
+  color: var(--g900);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.sw .topbar .burger {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 7px;
+  width: 34px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+/* ---------- public site nav (prototype screen 01) ----------------------- */
+
+.sw .lp-nav {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--ink2);
+}
+
+.sw .lp-navlinks {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+}
+
+.sw .lp-burger {
+  display: none;
+}
+
+/* Page bands. Padding lives here rather than inline so the narrow-viewport
+   rule can simply restate it instead of fighting an inline style. */
+.sw .lp-sec {
+  padding: 44px 32px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
+.sw .lp-sec.alt {
+  background: var(--g50);
+}
+
+.sw .lp-sec.hero {
+  padding: 52px 32px 44px;
+  background: var(--g900);
+  color: #fff;
+  border-bottom: 0;
+}
+
+.sw .lp-sec.cta {
+  padding: 46px 32px;
+  background: var(--g900);
+  color: #fff;
+  text-align: center;
+  border-bottom: 0;
+}
+
+.sw .lp-inner {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.sw .lp-inner.narrow {
+  max-width: 760px;
+}
+
+.sw .lp-h1 {
+  font-size: 40px;
+  line-height: 1.12;
+  letter-spacing: -1.4px;
+  font-weight: 700;
+}
+
+.sw .lp-h2 {
+  font-size: 23px;
+  letter-spacing: -0.6px;
+}
+
+/* ==========================================================================
+   Responsive. The prototype is drawn at desktop width only and its own note
+   on screen 69 states the rules: tables stack rather than scroll on the
+   individual surface, the unavailable chip must survive, and the layout
+   hierarchy is preserved rather than uniformly shrunk.
+   ========================================================================== */
+
+@media (max-width: 880px) {
+  .sw .lp-burger {
+    display: inline-flex;
+  }
+
+  .sw .lp-nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 16px 24px 22px;
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    box-shadow: var(--sh);
+  }
+
+  .sw .lp-nav.open {
+    display: flex;
+  }
+
+  .sw .lp-navlinks {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .sw .lp-nav .btn {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 720px) {
+  .sw .lp header,
+  .sw .lp footer {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .sw .lp-sec,
+  .sw .lp-sec.hero,
+  .sw .lp-sec.cta {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .sw .lp-h1 {
+    font-size: 28px;
+    letter-spacing: -0.8px;
+  }
+
+  .sw .lp-h2 {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .sw .r4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  .sw .scr {
+    padding: 22px 22px 60px;
+  }
+
+  .sw .r3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .sw .r21,
+  .sw .r12 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .sw .topbar {
+    display: flex;
+  }
+
+  .sw .side {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100dvh;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .sw .side.open {
+    transform: translateX(0);
+  }
+
+  .sw-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 34, 15, 0.45);
+    z-index: 45;
+  }
+}
+
+@media (max-width: 720px) {
+  .sw .scr {
+    padding: 18px 16px 84px;
+  }
+
+  .sw .row {
+    gap: 12px;
+  }
+
+  .sw .r2,
+  .sw .r3,
+  .sw .r4 {
+    grid-template-columns: 1fr;
+  }
+
+  .sw .scrhead {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .sw .scrhead h1 {
+    font-size: 18px;
+  }
+
+  .sw .card {
+    padding: 15px;
+  }
+
+  .sw .kpi .val {
+    font-size: 22px;
+  }
+
+  .sw .stepper {
+    overflow-x: auto;
+  }
+
+  .sw .stepper div {
+    flex: 0 0 auto;
+    min-width: 128px;
+  }
+
+  .sw .mob {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  /* Stacked rows for the individual surface. `data-l` on a cell supplies the
+     column label once the header row is hidden — the prototype's rule is no
+     horizontal scrolling on a data screen a market trader will use. */
+  .sw table.stack thead {
+    display: none;
+  }
+
+  .sw table.stack tr {
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px 2px;
+    margin-bottom: 8px;
+    background: #fff;
+  }
+
+  .sw table.stack td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 14px;
+    border-bottom: 0;
+    padding: 5px 10px;
+    text-align: left;
+  }
+
+  .sw table.stack td.num {
+    text-align: right;
+  }
+
+  .sw table.stack td[data-l]::before {
+    content: attr(data-l);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--ink3);
+    font-weight: 700;
+    font-family: var(--f);
+    flex: 0 0 auto;
+    padding-top: 2px;
+  }
+}
+
+@media (max-width: 420px) {
+  .sw .scr {
+    padding: 16px 12px 84px;
+  }
+}
+
+/* ---------- print (exports carry coverage + tiers) ---------------------- */
+
+@media print {
+  .sw .side,
+  .sw .topbar,
+  .sw .btn {
+    display: none !important;
+  }
+
+  .sw .card {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}

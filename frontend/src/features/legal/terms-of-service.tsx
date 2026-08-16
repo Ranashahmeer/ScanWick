@@ -34,11 +34,11 @@ function SectionHeading({ number, children }: { number: number; children: string
 }
 
 export function TermsOfServicePage() {
-  const { theme, toggleTheme } = useScanwickChrome();
+  const { theme } = useScanwickChrome();
 
   return (
     <main className={`scanwick-page legal-page ${theme === "light" ? "theme-light" : ""}`}>
-      <Header theme={theme} onToggleTheme={toggleTheme} />
+      <Header />
 
       <section className="legal-hero">
         <div className="legal-inner">

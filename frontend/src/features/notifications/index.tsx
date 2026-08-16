@@ -1,212 +1,171 @@
-import { CheckCircle2 } from "lucide-react";
-import { useState } from "react";
-import { useScanwickChrome } from "@/features/landing/chrome";
-import { AppTopbar } from "@/features/upload/components/topbar";
+/**
+ * Notifications — prototype screen 50.
+ *
+ * Immediate for Act and Urgent; digest for Watch and Informational. A
+ * portfolio officer who gets forty emails a day stops reading all of them,
+ * including the urgent ones — so the delivery rules are visible on the same
+ * screen as the list, and preferences are per user rather than per
+ * institution.
+ */
 
-type Module = "finance" | "commerce";
-type Severity = "critical" | "warning" | "info";
-type SectionId = "alerts" | "recommendations" | "team" | "dataQuality";
+import { AppShell, Screen } from "@/features/shell/app-shell";
+import {
+  Btn,
+  Card,
+  Empty,
+  Hint,
+  LoadFailed,
+  Row,
+  ScreenHead,
+  Sev,
+  SkeletonRows,
+  Tbl,
+} from "@/components/sw";
+import {
+  useNotificationPreferences,
+  useSaveNotificationPreferences,
+} from "@/features/account/billing/notifications-api";
 
-interface NotificationItem {
-  id: string;
-  section: SectionId;
-  module: Module;
-  severity: Severity;
-  title: string;
-  description: string;
-  time: string;
-}
-
-const moduleFilters: { id: "all" | Module; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "finance", label: "Finance" },
-  { id: "commerce", label: "Commerce" },
-];
-
-const severityFilters: { id: Severity; label: string }[] = [
-  { id: "critical", label: "Critical" },
-  { id: "warning", label: "Warning" },
-  { id: "info", label: "Info" },
-];
-
-const sectionTitles: Record<SectionId, string> = {
-  alerts: "Active alerts",
-  recommendations: "AI recommendations",
-  team: "Team activity",
-  dataQuality: "Data quality warnings",
-};
-
-const sectionOrder: SectionId[] = ["alerts", "recommendations", "team", "dataQuality"];
-
-const initialNotifications: NotificationItem[] = [
-  {
-    id: "stockout-lmp014",
-    section: "alerts",
-    module: "commerce",
-    severity: "critical",
-    title: "Stockout alert — LMP-014",
-    description: "Rattan Pendant Lamp - 7 days of cover left",
-    time: "2h ago",
-  },
-  {
-    id: "stale-commerce-sync",
-    section: "alerts",
-    module: "commerce",
-    severity: "warning",
-    title: "Stale data",
-    description: "Commerce sync 31h ago — reconnect to refresh",
-    time: "today",
-  },
-  {
-    id: "reorder-lmp014",
-    section: "recommendations",
-    module: "commerce",
-    severity: "info",
-    title: "Reorder LMP-014 before 5 Jul",
-    description: "₦1.24M at stake · 92% confidence",
-    time: "today",
-  },
-  {
-    id: "role-changed-tunde",
-    section: "team",
-    module: "commerce",
-    severity: "info",
-    title: "Role changed",
-    description: "Tunde set to Warehouse Manager (Commerce)",
-    time: "yesterday",
-  },
-  {
-    id: "invite-accepted",
-    section: "team",
-    module: "finance",
-    severity: "info",
-    title: "Invite accepted",
-    description: "accountant@lumio.ng joined as Accountant",
-    time: "2d ago",
-  },
-  {
-    id: "date-gap-gtbank",
-    section: "dataQuality",
-    module: "finance",
-    severity: "warning",
-    title: "Date gap in GTBank statement",
-    description: "2–7 Apr - affects Income Stability",
-    time: "today",
-  },
+const DELIVERY_RULES = [
+  { level: "u" as const, label: "Urgent", email: "Immediate", inApp: "Immediate" },
+  { level: "a" as const, label: "Act", email: "Immediate", inApp: "Immediate" },
+  { level: "w" as const, label: "Watch", email: "Daily digest", inApp: "Immediate" },
+  { level: "i" as const, label: "Informational", email: "Weekly digest", inApp: "Immediate" },
 ];
 
 export function NotificationCenterPage() {
-  const { theme, toggleTheme } = useScanwickChrome();
-  const [notifications, setNotifications] = useState(initialNotifications);
-  const [moduleFilter, setModuleFilter] = useState<"all" | Module>("all");
-  const [severityFilter, setSeverityFilter] = useState<Set<Severity>>(new Set());
+  const preferences = useNotificationPreferences();
+  const savePreferences = useSaveNotificationPreferences();
 
-  const toggleSeverity = (severity: Severity) => {
-    setSeverityFilter((current) => {
-      const next = new Set(current);
-      if (next.has(severity)) next.delete(severity);
-      else next.add(severity);
-      return next;
-    });
-  };
-
-  const visible = notifications.filter(
-    (item) =>
-      (moduleFilter === "all" || item.module === moduleFilter) &&
-      (severityFilter.size === 0 || severityFilter.has(item.severity)),
-  );
-
-  const sections = sectionOrder
-    .map((id) => ({
-      id,
-      title: sectionTitles[id],
-      items: visible.filter((item) => item.section === id),
-    }))
-    .filter((section) => section.items.length > 0);
+  const list = preferences.data ?? [];
 
   return (
-    <main className={`scanwick-page upload-page ${theme === "light" ? "theme-light" : ""}`}>
-      <AppTopbar theme={theme} onToggleTheme={toggleTheme} />
+    <AppShell>
+      <Screen>
+        <ScreenHead
+          title="Notifications"
+          meta="Immediate for Act and Urgent · digest for Watch and Informational"
+          tag="Surface 3"
+          tagTone="s3"
+        />
 
-      <section className="upload-main">
-        <div className="notif-inner">
-          <div className="notif-heading">
-            <div>
-              <h1>Notification Center</h1>
-              <p>Alerts, recommendations, and team activity across every module.</p>
-            </div>
-            <button
-              type="button"
-              className="notif-mark-read"
-              onClick={() => setNotifications([])}
-              disabled={notifications.length === 0}
-            >
-              Mark all read
-            </button>
-          </div>
+        <Row cols="21">
+          <Card title="Recent" sub="Everything raised on your account">
+            <Empty title="Nothing to tell you">
+              No signal has been raised and no analysis has finished since you last looked.
+            </Empty>
+          </Card>
 
-          <div className="notif-filters">
-            <div className="notif-filter-group" role="radiogroup" aria-label="Module">
-              {moduleFilters.map((filter) => (
-                <button
-                  key={filter.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={moduleFilter === filter.id}
-                  className={`upload-pill ${moduleFilter === filter.id ? "is-active" : ""}`}
-                  onClick={() => setModuleFilter(filter.id)}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
+          <div>
+            <Card title="How each severity is delivered" style={{ marginBottom: 14 }}>
+              <Tbl>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Severity</th>
+                      <th>Email</th>
+                      <th>In-app</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {DELIVERY_RULES.map((rule) => (
+                      <tr key={rule.label}>
+                        <td>
+                          <Sev level={rule.level} />
+                          {rule.label}
+                        </td>
+                        <td>{rule.email}</td>
+                        <td>{rule.inApp}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Tbl>
+              <Hint style={{ marginTop: 12 }}>Urgent never waits for a digest.</Hint>
+            </Card>
 
-            <span className="notif-filter-label">Severity</span>
-            <div className="notif-filter-group" role="group" aria-label="Severity">
-              {severityFilters.map((filter) => (
-                <button
-                  key={filter.id}
-                  type="button"
-                  aria-pressed={severityFilter.has(filter.id)}
-                  className={`notif-severity-pill notif-severity-pill-${filter.id} ${
-                    severityFilter.has(filter.id) ? "is-active" : ""
-                  }`}
-                  onClick={() => toggleSeverity(filter.id)}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {sections.length ? (
-            sections.map((section) => (
-              <div className="notif-section" key={section.id}>
-                <h2>{section.title}</h2>
-                <div className="notif-list">
-                  {section.items.map((item) => (
-                    <div className="notif-row" key={item.id}>
-                      <span className={`notif-dot notif-dot-${item.severity}`} />
-                      <div className="notif-row-body">
-                        <strong>{item.title}</strong>
-                        <p>{item.description}</p>
-                      </div>
-                      <span className={`notif-badge notif-badge-${item.severity}`}>{item.severity}</span>
-                      <span className="notif-time">{item.time}</span>
-                    </div>
-                  ))}
+            <Card title="Your preferences" sub="Per user, not per workspace">
+              {preferences.isLoading ? (
+                <SkeletonRows rows={5} />
+              ) : preferences.isError ? (
+                <LoadFailed onRetry={() => preferences.refetch()} />
+              ) : list.length === 0 ? (
+                <Hint>No preference rows were returned for your account.</Hint>
+              ) : (
+                <Tbl>
+                  <table className="stack">
+                    <thead>
+                      <tr>
+                        <th>Event</th>
+                        <th>Email</th>
+                        <th>In-app</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {list.map((preference) => (
+                        <tr key={preference.event_key}>
+                          <td data-l="Event">{preference.label}</td>
+                          <td data-l="Email">
+                            <input
+                              type="checkbox"
+                              checked={preference.email}
+                              aria-label={`${preference.label} by email`}
+                              onChange={(event) =>
+                                savePreferences.mutate(
+                                  list.map((row) =>
+                                    row.event_key === preference.event_key
+                                      ? { ...row, email: event.target.checked }
+                                      : row,
+                                  ),
+                                )
+                              }
+                            />
+                          </td>
+                          <td data-l="In-app">
+                            <input
+                              type="checkbox"
+                              checked={preference.in_app}
+                              aria-label={`${preference.label} in app`}
+                              onChange={(event) =>
+                                savePreferences.mutate(
+                                  list.map((row) =>
+                                    row.event_key === preference.event_key
+                                      ? { ...row, in_app: event.target.checked }
+                                      : row,
+                                  ),
+                                )
+                              }
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Tbl>
+              )}
+              {savePreferences.isError ? (
+                <div className="errmsg" role="alert">
+                  {(savePreferences.error as Error).message}
                 </div>
-              </div>
-            ))
-          ) : (
-            <div className="notif-empty">
-              <CheckCircle2 size={28} strokeWidth={2} />
-              <strong>You're all caught up</strong>
-              <p>No active alerts or pending recommendations.</p>
-            </div>
-          )}
+              ) : null}
+              {savePreferences.isPending ? <Hint>Saving…</Hint> : null}
+            </Card>
+          </div>
+        </Row>
+
+
+
+        <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Btn tone="sec" sm onClick={() => (window.location.href = "/consent")}>
+            Consent centre
+          </Btn>
+          <Btn tone="gho" sm onClick={() => (window.location.href = "/account?tab=profile")}>
+            All account settings
+          </Btn>
         </div>
-      </section>
-    </main>
+      </Screen>
+    </AppShell>
   );
 }
+
+export default NotificationCenterPage;

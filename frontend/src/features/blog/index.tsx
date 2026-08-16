@@ -12,7 +12,7 @@ const categories: (PostCategory | "All posts")[] = [
 ];
 
 export function BlogPage() {
-  const { theme, toggleTheme } = useScanwickChrome();
+  const { theme } = useScanwickChrome();
   const [activeCategory, setActiveCategory] = useState<PostCategory | "All posts">(
     "All posts",
   );
@@ -35,7 +35,7 @@ export function BlogPage() {
 
   return (
     <main className={`scanwick-page blog-page ${theme === "light" ? "theme-light" : ""}`}>
-      <Header theme={theme} onToggleTheme={toggleTheme} />
+      <Header />
 
       <section className="blog-hero">
         <div className="blog-inner">

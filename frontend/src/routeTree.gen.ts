@@ -14,10 +14,11 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TermsIndexRouteImport } from './routes/terms/index'
 import { Route as PrivacyIndexRouteImport } from './routes/privacy/index'
-import { Route as PlaygroundIndexRouteImport } from './routes/playground/index'
 import { Route as ContactIndexRouteImport } from './routes/contact/index'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
+import { Route as VRefRouteImport } from './routes/v/$ref'
+import { Route as ConsentRequestTokenRouteImport } from './routes/consent-request.$token'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
 import { Route as AuthResetRouteImport } from './routes/_auth.reset'
 import { Route as AuthRegisterRouteImport } from './routes/_auth.register'
@@ -26,9 +27,17 @@ import { Route as AuthLoginRouteImport } from './routes/_auth.login'
 import { Route as AuthGetcodeRouteImport } from './routes/_auth.getcode'
 import { Route as AppReportsRouteImport } from './routes/_app.reports'
 import { Route as AppUploadIndexRouteImport } from './routes/_app/upload/index'
+import { Route as AppSharesIndexRouteImport } from './routes/_app/shares/index'
+import { Route as AppPortfolioIndexRouteImport } from './routes/_app/portfolio/index'
 import { Route as AppNotificationsIndexRouteImport } from './routes/_app/notifications/index'
+import { Route as AppMoneyIndexRouteImport } from './routes/_app/money/index'
+import { Route as AppLendingIndexRouteImport } from './routes/_app/lending/index'
+import { Route as AppInstitutionIndexRouteImport } from './routes/_app/institution/index'
 import { Route as AppDashboardIndexRouteImport } from './routes/_app/dashboard/index'
+import { Route as AppConsentIndexRouteImport } from './routes/_app/consent/index'
 import { Route as AppCommerceIntelligenceIndexRouteImport } from './routes/_app/commerce-intelligence/index'
+import { Route as AppAuditIndexRouteImport } from './routes/_app/audit/index'
+import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts/index'
 import { Route as AppAccountIndexRouteImport } from './routes/_app/account/index'
 
 const AcceptInviteRoute = AcceptInviteRouteImport.update({
@@ -55,11 +64,6 @@ const PrivacyIndexRoute = PrivacyIndexRouteImport.update({
   path: '/privacy/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PlaygroundIndexRoute = PlaygroundIndexRouteImport.update({
-  id: '/playground/',
-  path: '/playground/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ContactIndexRoute = ContactIndexRouteImport.update({
   id: '/contact/',
   path: '/contact/',
@@ -73,6 +77,16 @@ const BlogIndexRoute = BlogIndexRouteImport.update({
 const AboutIndexRoute = AboutIndexRouteImport.update({
   id: '/about/',
   path: '/about/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VRefRoute = VRefRouteImport.update({
+  id: '/v/$ref',
+  path: '/v/$ref',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConsentRequestTokenRoute = ConsentRequestTokenRouteImport.update({
+  id: '/consent-request/$token',
+  path: '/consent-request/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogSlugRoute = BlogSlugRouteImport.update({
@@ -115,14 +129,44 @@ const AppUploadIndexRoute = AppUploadIndexRouteImport.update({
   path: '/upload/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSharesIndexRoute = AppSharesIndexRouteImport.update({
+  id: '/shares/',
+  path: '/shares/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPortfolioIndexRoute = AppPortfolioIndexRouteImport.update({
+  id: '/portfolio/',
+  path: '/portfolio/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppNotificationsIndexRoute = AppNotificationsIndexRouteImport.update({
   id: '/notifications/',
   path: '/notifications/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMoneyIndexRoute = AppMoneyIndexRouteImport.update({
+  id: '/money/',
+  path: '/money/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLendingIndexRoute = AppLendingIndexRouteImport.update({
+  id: '/lending/',
+  path: '/lending/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInstitutionIndexRoute = AppInstitutionIndexRouteImport.update({
+  id: '/institution/',
+  path: '/institution/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDashboardIndexRoute = AppDashboardIndexRouteImport.update({
   id: '/dashboard/',
   path: '/dashboard/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppConsentIndexRoute = AppConsentIndexRouteImport.update({
+  id: '/consent/',
+  path: '/consent/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCommerceIntelligenceIndexRoute =
@@ -131,6 +175,16 @@ const AppCommerceIntelligenceIndexRoute =
     path: '/commerce-intelligence/',
     getParentRoute: () => AppRoute,
   } as any)
+const AppAuditIndexRoute = AppAuditIndexRouteImport.update({
+  id: '/audit/',
+  path: '/audit/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccountsIndexRoute = AppAccountsIndexRouteImport.update({
+  id: '/accounts/',
+  path: '/accounts/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAccountIndexRoute = AppAccountIndexRouteImport.update({
   id: '/account/',
   path: '/account/',
@@ -147,16 +201,25 @@ export interface FileRoutesByFullPath {
   '/register': typeof AuthRegisterRoute
   '/reset': typeof AuthResetRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/consent-request/$token': typeof ConsentRequestTokenRoute
+  '/v/$ref': typeof VRefRoute
   '/about/': typeof AboutIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/contact/': typeof ContactIndexRoute
-  '/playground/': typeof PlaygroundIndexRoute
   '/privacy/': typeof PrivacyIndexRoute
   '/terms/': typeof TermsIndexRoute
   '/account/': typeof AppAccountIndexRoute
+  '/accounts/': typeof AppAccountsIndexRoute
+  '/audit/': typeof AppAuditIndexRoute
   '/commerce-intelligence/': typeof AppCommerceIntelligenceIndexRoute
+  '/consent/': typeof AppConsentIndexRoute
   '/dashboard/': typeof AppDashboardIndexRoute
+  '/institution/': typeof AppInstitutionIndexRoute
+  '/lending/': typeof AppLendingIndexRoute
+  '/money/': typeof AppMoneyIndexRoute
   '/notifications/': typeof AppNotificationsIndexRoute
+  '/portfolio/': typeof AppPortfolioIndexRoute
+  '/shares/': typeof AppSharesIndexRoute
   '/upload/': typeof AppUploadIndexRoute
 }
 export interface FileRoutesByTo {
@@ -169,16 +232,25 @@ export interface FileRoutesByTo {
   '/register': typeof AuthRegisterRoute
   '/reset': typeof AuthResetRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/consent-request/$token': typeof ConsentRequestTokenRoute
+  '/v/$ref': typeof VRefRoute
   '/about': typeof AboutIndexRoute
   '/blog': typeof BlogIndexRoute
   '/contact': typeof ContactIndexRoute
-  '/playground': typeof PlaygroundIndexRoute
   '/privacy': typeof PrivacyIndexRoute
   '/terms': typeof TermsIndexRoute
   '/account': typeof AppAccountIndexRoute
+  '/accounts': typeof AppAccountsIndexRoute
+  '/audit': typeof AppAuditIndexRoute
   '/commerce-intelligence': typeof AppCommerceIntelligenceIndexRoute
+  '/consent': typeof AppConsentIndexRoute
   '/dashboard': typeof AppDashboardIndexRoute
+  '/institution': typeof AppInstitutionIndexRoute
+  '/lending': typeof AppLendingIndexRoute
+  '/money': typeof AppMoneyIndexRoute
   '/notifications': typeof AppNotificationsIndexRoute
+  '/portfolio': typeof AppPortfolioIndexRoute
+  '/shares': typeof AppSharesIndexRoute
   '/upload': typeof AppUploadIndexRoute
 }
 export interface FileRoutesById {
@@ -193,16 +265,25 @@ export interface FileRoutesById {
   '/_auth/register': typeof AuthRegisterRoute
   '/_auth/reset': typeof AuthResetRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/consent-request/$token': typeof ConsentRequestTokenRoute
+  '/v/$ref': typeof VRefRoute
   '/about/': typeof AboutIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/contact/': typeof ContactIndexRoute
-  '/playground/': typeof PlaygroundIndexRoute
   '/privacy/': typeof PrivacyIndexRoute
   '/terms/': typeof TermsIndexRoute
   '/_app/account/': typeof AppAccountIndexRoute
+  '/_app/accounts/': typeof AppAccountsIndexRoute
+  '/_app/audit/': typeof AppAuditIndexRoute
   '/_app/commerce-intelligence/': typeof AppCommerceIntelligenceIndexRoute
+  '/_app/consent/': typeof AppConsentIndexRoute
   '/_app/dashboard/': typeof AppDashboardIndexRoute
+  '/_app/institution/': typeof AppInstitutionIndexRoute
+  '/_app/lending/': typeof AppLendingIndexRoute
+  '/_app/money/': typeof AppMoneyIndexRoute
   '/_app/notifications/': typeof AppNotificationsIndexRoute
+  '/_app/portfolio/': typeof AppPortfolioIndexRoute
+  '/_app/shares/': typeof AppSharesIndexRoute
   '/_app/upload/': typeof AppUploadIndexRoute
 }
 export interface FileRouteTypes {
@@ -217,16 +298,25 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset'
     | '/blog/$slug'
+    | '/consent-request/$token'
+    | '/v/$ref'
     | '/about/'
     | '/blog/'
     | '/contact/'
-    | '/playground/'
     | '/privacy/'
     | '/terms/'
     | '/account/'
+    | '/accounts/'
+    | '/audit/'
     | '/commerce-intelligence/'
+    | '/consent/'
     | '/dashboard/'
+    | '/institution/'
+    | '/lending/'
+    | '/money/'
     | '/notifications/'
+    | '/portfolio/'
+    | '/shares/'
     | '/upload/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -239,16 +329,25 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset'
     | '/blog/$slug'
+    | '/consent-request/$token'
+    | '/v/$ref'
     | '/about'
     | '/blog'
     | '/contact'
-    | '/playground'
     | '/privacy'
     | '/terms'
     | '/account'
+    | '/accounts'
+    | '/audit'
     | '/commerce-intelligence'
+    | '/consent'
     | '/dashboard'
+    | '/institution'
+    | '/lending'
+    | '/money'
     | '/notifications'
+    | '/portfolio'
+    | '/shares'
     | '/upload'
   id:
     | '__root__'
@@ -262,16 +361,25 @@ export interface FileRouteTypes {
     | '/_auth/register'
     | '/_auth/reset'
     | '/blog/$slug'
+    | '/consent-request/$token'
+    | '/v/$ref'
     | '/about/'
     | '/blog/'
     | '/contact/'
-    | '/playground/'
     | '/privacy/'
     | '/terms/'
     | '/_app/account/'
+    | '/_app/accounts/'
+    | '/_app/audit/'
     | '/_app/commerce-intelligence/'
+    | '/_app/consent/'
     | '/_app/dashboard/'
+    | '/_app/institution/'
+    | '/_app/lending/'
+    | '/_app/money/'
     | '/_app/notifications/'
+    | '/_app/portfolio/'
+    | '/_app/shares/'
     | '/_app/upload/'
   fileRoutesById: FileRoutesById
 }
@@ -285,10 +393,11 @@ export interface RootRouteChildren {
   AuthRegisterRoute: typeof AuthRegisterRoute
   AuthResetRoute: typeof AuthResetRoute
   BlogSlugRoute: typeof BlogSlugRoute
+  ConsentRequestTokenRoute: typeof ConsentRequestTokenRoute
+  VRefRoute: typeof VRefRoute
   AboutIndexRoute: typeof AboutIndexRoute
   BlogIndexRoute: typeof BlogIndexRoute
   ContactIndexRoute: typeof ContactIndexRoute
-  PlaygroundIndexRoute: typeof PlaygroundIndexRoute
   PrivacyIndexRoute: typeof PrivacyIndexRoute
   TermsIndexRoute: typeof TermsIndexRoute
 }
@@ -330,13 +439,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/playground/': {
-      id: '/playground/'
-      path: '/playground'
-      fullPath: '/playground/'
-      preLoaderRoute: typeof PlaygroundIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/contact/': {
       id: '/contact/'
       path: '/contact'
@@ -356,6 +458,20 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about/'
       preLoaderRoute: typeof AboutIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v/$ref': {
+      id: '/v/$ref'
+      path: '/v/$ref'
+      fullPath: '/v/$ref'
+      preLoaderRoute: typeof VRefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/consent-request/$token': {
+      id: '/consent-request/$token'
+      path: '/consent-request/$token'
+      fullPath: '/consent-request/$token'
+      preLoaderRoute: typeof ConsentRequestTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog/$slug': {
@@ -414,11 +530,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppUploadIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/shares/': {
+      id: '/_app/shares/'
+      path: '/shares'
+      fullPath: '/shares/'
+      preLoaderRoute: typeof AppSharesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/portfolio/': {
+      id: '/_app/portfolio/'
+      path: '/portfolio'
+      fullPath: '/portfolio/'
+      preLoaderRoute: typeof AppPortfolioIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/notifications/': {
       id: '/_app/notifications/'
       path: '/notifications'
       fullPath: '/notifications/'
       preLoaderRoute: typeof AppNotificationsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/money/': {
+      id: '/_app/money/'
+      path: '/money'
+      fullPath: '/money/'
+      preLoaderRoute: typeof AppMoneyIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/lending/': {
+      id: '/_app/lending/'
+      path: '/lending'
+      fullPath: '/lending/'
+      preLoaderRoute: typeof AppLendingIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/institution/': {
+      id: '/_app/institution/'
+      path: '/institution'
+      fullPath: '/institution/'
+      preLoaderRoute: typeof AppInstitutionIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard/': {
@@ -428,11 +579,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/consent/': {
+      id: '/_app/consent/'
+      path: '/consent'
+      fullPath: '/consent/'
+      preLoaderRoute: typeof AppConsentIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/commerce-intelligence/': {
       id: '/_app/commerce-intelligence/'
       path: '/commerce-intelligence'
       fullPath: '/commerce-intelligence/'
       preLoaderRoute: typeof AppCommerceIntelligenceIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/audit/': {
+      id: '/_app/audit/'
+      path: '/audit'
+      fullPath: '/audit/'
+      preLoaderRoute: typeof AppAuditIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/accounts/': {
+      id: '/_app/accounts/'
+      path: '/accounts'
+      fullPath: '/accounts/'
+      preLoaderRoute: typeof AppAccountsIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/account/': {
@@ -448,18 +620,34 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppReportsRoute: typeof AppReportsRoute
   AppAccountIndexRoute: typeof AppAccountIndexRoute
+  AppAccountsIndexRoute: typeof AppAccountsIndexRoute
+  AppAuditIndexRoute: typeof AppAuditIndexRoute
   AppCommerceIntelligenceIndexRoute: typeof AppCommerceIntelligenceIndexRoute
+  AppConsentIndexRoute: typeof AppConsentIndexRoute
   AppDashboardIndexRoute: typeof AppDashboardIndexRoute
+  AppInstitutionIndexRoute: typeof AppInstitutionIndexRoute
+  AppLendingIndexRoute: typeof AppLendingIndexRoute
+  AppMoneyIndexRoute: typeof AppMoneyIndexRoute
   AppNotificationsIndexRoute: typeof AppNotificationsIndexRoute
+  AppPortfolioIndexRoute: typeof AppPortfolioIndexRoute
+  AppSharesIndexRoute: typeof AppSharesIndexRoute
   AppUploadIndexRoute: typeof AppUploadIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppReportsRoute: AppReportsRoute,
   AppAccountIndexRoute: AppAccountIndexRoute,
+  AppAccountsIndexRoute: AppAccountsIndexRoute,
+  AppAuditIndexRoute: AppAuditIndexRoute,
   AppCommerceIntelligenceIndexRoute: AppCommerceIntelligenceIndexRoute,
+  AppConsentIndexRoute: AppConsentIndexRoute,
   AppDashboardIndexRoute: AppDashboardIndexRoute,
+  AppInstitutionIndexRoute: AppInstitutionIndexRoute,
+  AppLendingIndexRoute: AppLendingIndexRoute,
+  AppMoneyIndexRoute: AppMoneyIndexRoute,
   AppNotificationsIndexRoute: AppNotificationsIndexRoute,
+  AppPortfolioIndexRoute: AppPortfolioIndexRoute,
+  AppSharesIndexRoute: AppSharesIndexRoute,
   AppUploadIndexRoute: AppUploadIndexRoute,
 }
 
@@ -475,10 +663,11 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRegisterRoute: AuthRegisterRoute,
   AuthResetRoute: AuthResetRoute,
   BlogSlugRoute: BlogSlugRoute,
+  ConsentRequestTokenRoute: ConsentRequestTokenRoute,
+  VRefRoute: VRefRoute,
   AboutIndexRoute: AboutIndexRoute,
   BlogIndexRoute: BlogIndexRoute,
   ContactIndexRoute: ContactIndexRoute,
-  PlaygroundIndexRoute: PlaygroundIndexRoute,
   PrivacyIndexRoute: PrivacyIndexRoute,
   TermsIndexRoute: TermsIndexRoute,
 }

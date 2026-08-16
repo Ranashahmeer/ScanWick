@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "./theme.css";
+@import "./scanwick.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -7955,3 +7956,221 @@
     margin-bottom: 1rem !important;
   }
 } */
+
+/* ---------- Home / daily-view screen (prototype s17) ---------- */
+.fi-home-hero {
+  background: var(--sw-g900, #00220f);
+  color: #fff;
+  border: 0;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.fi-home-hero .fi-home-hero-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--sw-g300, #7fc7a3);
+  font-weight: 700;
+}
+.fi-home-hero .fi-home-hero-headline {
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  margin-top: 5px;
+}
+.fi-home-hero .fi-home-hero-sub {
+  font-size: 12.5px;
+  color: #cfe0d6;
+  margin-top: 5px;
+}
+.fi-home-hero-runway {
+  text-align: right;
+}
+.fi-home-hero-runway .lab {
+  font-size: 11px;
+  color: #7fa791;
+}
+.fi-home-hero-runway .val {
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.fi-home-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 4px 0 14px;
+}
+.fi-home-kpis .lab {
+  font-size: 11px;
+  color: rgba(var(--sw-text-rgb), 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.fi-home-kpis .val {
+  font-size: 21px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.fi-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 60px;
+  margin-top: 14px;
+}
+.fi-spark i {
+  flex: 1;
+  background: var(--sw-g300, #7fc7a3);
+  opacity: 0.55;
+  border-radius: 3px 3px 0 0;
+  display: block;
+}
+.fi-spark-legend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: rgba(var(--sw-text-rgb), 0.45);
+}
+
+.fi-attention-card {
+  border-left: 4px solid var(--sw-warn, #b45309);
+}
+
+.fi-src-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.fi-src-chip b {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--sw-g100, #dcefe4);
+  color: var(--sw-g700, #0a4a2a);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.fi-home-jump {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* ---------- Landing hero (prototype s01) ---------- */
+.fi-landing-hero {
+  background: var(--sw-g900, #00220f);
+  color: #fff;
+  padding: 52px 32px 44px;
+}
+.fi-landing-hero-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
+}
+.fi-landing-hero-eyebrow {
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--sw-g300, #7fc7a3);
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+.fi-landing-hero-inner h1 {
+  font-size: 40px;
+  line-height: 1.12;
+  letter-spacing: -1.4px;
+  font-weight: 700;
+  margin: 0;
+}
+.fi-landing-hero-inner p {
+  margin-top: 16px;
+  font-size: 15.5px;
+  color: #cfe0d6;
+  line-height: 1.65;
+}
+
+.fi-landing-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  max-width: 820px;
+  margin: 34px auto 0;
+  gap: 18px;
+}
+@media (max-width: 760px) {
+  .fi-landing-split {
+    grid-template-columns: 1fr;
+  }
+}
+.fi-landing-split-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: left;
+}
+.fi-landing-split-card-primary {
+  border-color: rgba(127, 199, 163, 0.3);
+}
+.fi-landing-split-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #9fbfae;
+  font-weight: 700;
+  margin-bottom: 9px;
+}
+.fi-landing-split-card-primary .fi-landing-split-eyebrow {
+  color: var(--sw-g300, #7fc7a3);
+}
+.fi-landing-split-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-bottom: 9px;
+}
+.fi-landing-split-card p {
+  font-size: 12.5px;
+  color: #cfe0d6;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.fi-landing-split-btn {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+.fi-landing-split-btn-solid {
+  background: var(--sw-g300, #7fc7a3);
+  color: var(--sw-g900, #00220f);
+}
+.fi-landing-split-btn-ghost {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.fi-landing-bank-strip {
+  text-align: center;
+  margin-top: 26px;
+  font-size: 11px;
+  color: #7fa791;
+  letter-spacing: 0.3px;
+}

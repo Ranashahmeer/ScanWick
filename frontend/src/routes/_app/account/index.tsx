@@ -2,14 +2,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import * as z from "zod";
 import { AccountSettingsPage } from "@/features/account";
 
-// `tab`/`upgrade` are how the landing page's pricing CTAs and the post-
-// checkout redirect deep-link straight into the right sub-tab (see
-// AccountSettingsPage/AccountBilling, which read these). `reference` isn't
-// declared here on purpose — it's Paystack/Flutterwave's own redirect
-// param, read directly off window.location.search by SubscriptionTab so it
-// still works even though this schema doesn't know its shape.
+// `tab` selects the prototype's account screens — 57 profile, 67 security,
+// 66 billing, 55 plans, 68 delete — plus the two workspace panels that have
+// no prototype screen of their own. `upgrade` is how the pricing CTAs and
+// the post-checkout redirect deep-link straight into checkout.
+//
+// `reference` isn't declared here on purpose — it's the payment provider's
+// own redirect param, read directly off window.location.search by the
+// billing tab so it still works even though this schema doesn't know it.
 const accountSearchSchema = z.object({
-  tab: z.enum(["billing", "team", "markers", "settings"]).optional(),
+  tab: z.enum(["profile", "security", "billing", "plans", "delete", "markers", "settings"]).optional(),
   upgrade: z.enum(["basic", "premium"]).optional(),
 });
 

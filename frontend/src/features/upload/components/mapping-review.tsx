@@ -1,7 +1,17 @@
-import { ChevronDown } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { Table } from "@/features/intelligence/components/shared";
-import { AppTopbar } from "./topbar";
+/**
+ * Confirm column mapping.
+ *
+ * Follows the column-mapping design on prototype screen 58: your column,
+ * a sample of what it holds, and a select saying what it means. Nothing is
+ * guessed silently — a column we could not place defaults to "ignore" and
+ * is shown, and the date-convention question is asked rather than inferred,
+ * because a file the user exported carries no issuer signature to resolve it
+ * from the way a bank statement does.
+ */
+
+import { useState } from "react";
+import { AppShell, Screen } from "@/features/shell/app-shell";
+import { Btn, Card, Hint, Pill, Row, ScreenHead, Select, Stepper, Tbl } from "@/components/sw";
 import type { MappingDetail } from "../uploads-api";
 
 const IGNORE_VALUE = "__ignore__";
@@ -27,75 +37,7 @@ function fieldLabel(field: string): string {
   return field.replace(/_/g, " ");
 }
 
-interface FieldOption {
-  value: string;
-  label: string;
-}
-
-// Generalized version of index.tsx's BankSelect (button + listbox, not a
-// native <select>) — same interaction pattern, parameterized on an options
-// list instead of the hardcoded bank name array.
-function FieldSelect({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: FieldOption[];
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
-
-  const selected = options.find((option) => option.value === value);
-
-  return (
-    <div className="upload-select" ref={rootRef}>
-      <button
-        type="button"
-        className="upload-select-trigger"
-        onClick={() => setOpen((current) => !current)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        {selected?.label ?? "Ignore this column"}
-        <ChevronDown size={14} strokeWidth={2.4} />
-      </button>
-
-      {open ? (
-        <ul className="upload-select-menu" role="listbox">
-          {options.map((option) => (
-            <li
-              key={option.value}
-              role="option"
-              aria-selected={option.value === value}
-              className={option.value === value ? "is-selected" : ""}
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-              }}
-            >
-              {option.label}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
-}
-
 export function MappingReviewPage({
-  theme,
-  onToggleTheme,
   analyzerType,
   mapping,
   confirming,
@@ -103,8 +45,6 @@ export function MappingReviewPage({
   onConfirm,
   onCancel,
 }: {
-  theme: "dark" | "light";
-  onToggleTheme: () => void;
   analyzerType: "ecommerce" | "bank";
   mapping: MappingDetail;
   confirming: boolean;
@@ -112,14 +52,14 @@ export function MappingReviewPage({
   onConfirm: (mapping: Record<string, string>, valueRules: Record<string, string>) => void;
   onCancel: () => void;
 }) {
-  const fieldOptions: FieldOption[] = [
+  const fieldOptions = [
     { value: IGNORE_VALUE, label: "Ignore this column" },
     ...CANONICAL_FIELDS[analyzerType].map((field) => ({ value: field, label: fieldLabel(field) })),
   ];
 
   const reviewHeaders = [
-    ...mapping.needs_confirmation.map((n) => ({ userHeader: n.user_header, candidate: n.candidate })),
-    ...mapping.unmapped.map((u) => ({ userHeader: u.user_header, candidate: null as string | null })),
+    ...mapping.needs_confirmation.map((n) => ({ userHeader: n.user_header, candidate: n.candidate, prompt: n.prompt })),
+    ...mapping.unmapped.map((u) => ({ userHeader: u.user_header, candidate: null as string | null, prompt: u.reason })),
   ];
 
   const [selections, setSelections] = useState<Record<string, string>>(() => {
@@ -129,7 +69,7 @@ export function MappingReviewPage({
   });
 
   const [valueAnswers, setValueAnswers] = useState<Record<string, string>>(() =>
-    Object.fromEntries(mapping.value_questions.map((q) => [q.field, q.options[q.options.length - 1] ?? q.options[0]]))
+    Object.fromEntries(mapping.value_questions.map((q) => [q.field, q.options[q.options.length - 1] ?? q.options[0]])),
   );
 
   const handleSubmit = () => {
@@ -142,98 +82,157 @@ export function MappingReviewPage({
   };
 
   return (
-    <main className={`scanwick-page upload-page ${theme === "light" ? "theme-light" : ""}`}>
-      <AppTopbar theme={theme} onToggleTheme={onToggleTheme} />
+    <AppShell>
+      <Screen>
+        <ScreenHead
+          title="Map your columns"
+          meta="Tell us what each column means. We remember this for next time."
+          tag="Ingestion"
+        />
+        <Stepper steps={["Add accounts", "Processing", "Review coverage", "Your money"]} current={1} />
 
-      <section className="upload-main">
-        <div className="dqr-inner">
-          <div className="upload-heading">
-            <h1>Confirm column mapping</h1>
-            <p>
-              We matched most of your columns automatically. Double-check the ones we weren't
-              confident about before we process the file.
-            </p>
+        <Row cols="21">
+          <div>
+            {reviewHeaders.length > 0 ? (
+              <Card
+                title="Needs your confirmation"
+                sub="We could not place these with enough confidence to decide for you"
+                style={{ marginBottom: 14 }}
+              >
+                <Tbl>
+                  <table className="stack">
+                    <thead>
+                      <tr>
+                        <th>Your column</th>
+                        <th>Why we are asking</th>
+                        <th>Means</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reviewHeaders.map((row) => (
+                        <tr key={row.userHeader} style={{ background: "var(--warnbg)" }}>
+                          <td className="mono" data-l="Your column">
+                            {row.userHeader}
+                          </td>
+                          <td data-l="Why">{row.prompt}</td>
+                          <td data-l="Means">
+                            <Select
+                              value={selections[row.userHeader] ?? IGNORE_VALUE}
+                              onChange={(event) =>
+                                setSelections((current) => ({ ...current, [row.userHeader]: event.target.value }))
+                              }
+                              aria-label={`What ${row.userHeader} means`}
+                              style={{ padding: "5px 28px 5px 8px", fontSize: 11.5 }}
+                            >
+                              {fieldOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </Select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Tbl>
+              </Card>
+            ) : null}
+
+            {mapping.value_questions.length > 0 ? (
+              <Card
+                title="One thing we will not guess"
+                sub="A file you exported carries no issuer signature, so the convention cannot be resolved automatically"
+                style={{ marginBottom: 14 }}
+              >
+                {mapping.value_questions.map((question) => (
+                  <div key={question.field} className="field">
+                    <label>{question.question}</label>
+                    <div role="radiogroup" aria-label={question.field} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {question.options.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          role="radio"
+                          aria-checked={valueAnswers[question.field] === option}
+                          className={`btn sm ${valueAnswers[question.field] === option ? "" : "gho"}`}
+                          onClick={() => setValueAnswers((current) => ({ ...current, [question.field]: option }))}
+                        >
+                          {fieldLabel(option)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </Card>
+            ) : null}
+
+            {mapping.auto_mapped.length > 0 ? (
+              <Card title="Matched automatically" sub="Shown so you can correct anything we got wrong">
+                <Tbl>
+                  <table className="stack">
+                    <thead>
+                      <tr>
+                        <th>Your column</th>
+                        <th>Maps to</th>
+                        <th className="num">How</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mapping.auto_mapped.map((m) => (
+                        <tr key={m.user_header}>
+                          <td className="mono" data-l="Your column">
+                            {m.user_header}
+                          </td>
+                          <td data-l="Maps to">{fieldLabel(m.canonical)}</td>
+                          <td className="num" data-l="How">
+                            <Pill tone={m.tier === "exact" ? "a" : "n"}>
+                              {m.tier} · {Math.round(m.confidence * 100)}%
+                            </Pill>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Tbl>
+              </Card>
+            ) : null}
           </div>
 
-      {mapping.auto_mapped.length > 0 ? (
-        <div className="upload-mapping-section">
-          <h3>Matched automatically</h3>
-          <Table
-            columns={[
-              { key: "user_header", label: "Your column" },
-              { key: "canonical", label: "Maps to" },
-              { key: "confidence", label: "Confidence", align: "right" },
-            ]}
-            rows={mapping.auto_mapped.map((m) => ({
-              user_header: m.user_header,
-              canonical: fieldLabel(m.canonical),
-              confidence: `${m.tier} · ${Math.round(m.confidence * 100)}%`,
-            }))}
-            rowKey={(row) => String(row.user_header)}
-          />
-        </div>
-      ) : null}
+          <div>
+            <Card title="Confirm" style={{ marginBottom: 14 }}>
+              {errorMessage ? (
+                <div
+                  role="alert"
+                  style={{
+                    padding: "10px 12px",
+                    background: "var(--stopbg)",
+                    border: "1px solid #E9C6C6",
+                    borderRadius: 8,
+                    fontSize: 12.5,
+                    color: "var(--stop)",
+                    marginBottom: 12,
+                  }}
+                >
+                  {errorMessage}
+                </div>
+              ) : null}
+              <Btn block onClick={handleSubmit} disabled={confirming}>
+                {confirming ? "Confirming…" : "Confirm and read the file"}
+              </Btn>
+              <Btn tone="gho" sm block style={{ marginTop: 8 }} onClick={onCancel} disabled={confirming}>
+                Cancel
+              </Btn>
+              <Hint style={{ marginTop: 10 }}>
+                Your answers are saved against this source, so the next file you upload from it is mapped without asking
+                again.
+              </Hint>
+            </Card>
 
-      {reviewHeaders.length > 0 ? (
-        <div className="upload-mapping-section">
-          <h3>Needs your confirmation</h3>
-          <Table
-            columns={[
-              { key: "user_header", label: "Your column" },
-              { key: "select", label: "Maps to" },
-            ]}
-            rows={reviewHeaders.map((row) => ({
-              user_header: row.userHeader,
-              select: (
-                <FieldSelect
-                  value={selections[row.userHeader] ?? IGNORE_VALUE}
-                  options={fieldOptions}
-                  onChange={(value) => setSelections((current) => ({ ...current, [row.userHeader]: value }))}
-                />
-              ),
-            }))}
-            rowKey={(_row, index) => reviewHeaders[index]?.userHeader ?? String(index)}
-          />
-        </div>
-      ) : null}
 
-      {mapping.value_questions.length > 0 ? (
-        <div className="upload-mapping-section">
-          <h3>One more thing</h3>
-          {mapping.value_questions.map((question) => (
-            <div key={question.field} className="upload-mapping-value-question">
-              <p>{question.question}</p>
-              <div className="upload-analyzer-pills" role="radiogroup" aria-label={question.field}>
-                {question.options.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={valueAnswers[question.field] === option}
-                    className={`upload-pill ${valueAnswers[question.field] === option ? "is-active" : ""}`}
-                    onClick={() => setValueAnswers((current) => ({ ...current, [question.field]: option }))}
-                  >
-                    {fieldLabel(option)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {errorMessage ? <p className="upload-mapping-error">{errorMessage}</p> : null}
-
-      <div className="upload-mapping-actions">
-        <button type="button" className="upload-choose-another" onClick={onCancel} disabled={confirming}>
-          Cancel
-        </button>
-        <button type="button" className="upload-mono-connect" onClick={handleSubmit} disabled={confirming}>
-          {confirming ? "Confirming…" : "Confirm mapping"}
-        </button>
-      </div>
-        </div>
-      </section>
-    </main>
+          </div>
+        </Row>
+      </Screen>
+    </AppShell>
   );
 }

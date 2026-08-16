@@ -8,9 +8,9 @@ import {
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { isAxiosError } from "axios";
-import { useScanwickChrome } from "@/features/landing/chrome";
 import { useAuth } from "@/hooks/use-auth";
-import { AppTopbar } from "./components/topbar";
+import { AppShell, Screen as ScreenFrame } from "@/features/shell/app-shell";
+import { Btn, Card, Hint, Row, ScreenHead, Stepper } from "@/components/sw";
 import { DataQualityReportPage } from "./components/data-quality-report";
 import { MappingReviewPage } from "./components/mapping-review";
 import {
@@ -90,7 +90,7 @@ function MonoPanel({
 
   const handleAuthorise = async () => {
     if (!monoAccountId.trim()) {
-      setError("Enter a Mono account id to connect (the Connect widget isn't wired up yet).");
+      setError("Enter your account reference to continue.");
       return;
     }
     setAuthorising(true);
@@ -105,37 +105,163 @@ function MonoPanel({
     }
   };
 
+  // Prototype screen 14 — connect by API. This screen is the gate on
+  // Surface 3: post-disbursement monitoring is only possible on a connected
+  // account, so it has to earn the connection rather than merely offer it.
   return (
-    <div className="upload-mono">
-      <button type="button" className="ing-back" onClick={onBack}>
+    <>
+      <button type="button" className="btn gho sm" style={{ marginBottom: 14 }} onClick={onBack}>
         <ArrowLeft size={14} strokeWidth={2.4} />
         All sources
       </button>
-      <h3 className="ing-statement-title">Connect {source.label}</h3>
-      <p className="upload-mono-intro">
-        You will be taken to a secure page to sign in with your bank. Scanwick
-        never sees your bank password. Connecting gives Tier A confidence.
-      </p>
-      <div className="upload-mono-authorize">
-        <strong>Authorise {source.label} → Scanwick</strong>
-        <span>Read-only access to statements &amp; balances</span>
-        <p>
-          The Mono Connect widget is not wired yet — enter a Mono account id
-          (sandbox/test) to exercise the connection:
-        </p>
-        <input
-          type="text"
-          value={monoAccountId}
-          onChange={(event) => setMonoAccountId(event.target.value)}
-          placeholder="e.g. acc_ng_1"
-          className="upload-mono-input"
-        />
-        <button type="button" className="upload-mono-connect" onClick={handleAuthorise} disabled={authorising}>
-          {authorising ? "Connecting…" : `Authorise ${source.label}`}
-        </button>
+
+      <div style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>
+        <div className="mob">
+          <div className="bar2" />
+          <div style={{ padding: 18 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
+              <div
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 5,
+                  background: "var(--g800)",
+                  color: "#fff",
+                  display: "grid",
+                  placeItems: "center",
+                  fontWeight: 800,
+                  fontSize: 11,
+                }}
+              >
+                S
+              </div>
+              <b style={{ fontSize: 12.5 }}>Scanwick</b>
+            </div>
+
+            <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.35, marginBottom: 9 }}>
+              Connect your {source.label} account
+            </div>
+            <div style={{ fontSize: 12, color: "var(--ink2)", lineHeight: 1.6, marginBottom: 14 }}>
+              You will be taken to a secure page to sign in with your bank. Scanwick never sees your bank password.
+            </div>
+
+            <div
+              style={{
+                padding: 11,
+                background: "var(--g50)",
+                borderRadius: 8,
+                fontSize: 11.5,
+                lineHeight: 1.65,
+                marginBottom: 14,
+              }}
+            >
+              <b>What we will be able to read:</b>
+              <br />• Your account balance
+              <br />• Your transaction history
+              <br />• Your account name and number
+              <br />
+              <br />
+              <b>What we will never be able to do:</b>
+              <br />• Move money
+              <br />• Make a payment
+              <br />• Change anything in your account
+            </div>
+
+            <div className="field">
+              <label htmlFor="mono-account">Account reference</label>
+              <input
+                id="mono-account"
+                type="text"
+                className="inp"
+                value={monoAccountId}
+                onChange={(event) => setMonoAccountId(event.target.value)}
+                placeholder="e.g. acc_ng_1"
+              />
+            </div>
+
+            <Btn block style={{ marginBottom: 8 }} onClick={handleAuthorise} disabled={authorising}>
+              {authorising ? "Connecting…" : "Continue to my bank"}
+            </Btn>
+            <Btn tone="gho" sm block onClick={onBack}>
+              Upload a statement instead
+            </Btn>
+            <Hint style={{ textAlign: "center", marginTop: 11, fontSize: 10.5 }}>
+              Read-only access · you can disconnect any time
+            </Hint>
+
+            {error ? (
+              <div
+                role="alert"
+                style={{
+                  marginTop: 12,
+                  padding: 10,
+                  background: "var(--stopbg)",
+                  border: "1px solid #E9C6C6",
+                  borderRadius: 8,
+                  fontSize: 11.5,
+                  color: "var(--stop)",
+                }}
+              >
+                {error}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 300 }}>
+          <Card title="Why connect rather than upload" style={{ marginBottom: 14 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th />
+                  <th>Connected</th>
+                  <th>Uploaded file</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Source tier</td>
+                  <td>
+                    <span className="pill a">A</span>
+                  </td>
+                  <td>
+                    <span className="pill b">B</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Effort per refresh</td>
+                  <td>None</td>
+                  <td>Download and upload each time</td>
+                </tr>
+                <tr>
+                  <td>Always current</td>
+                  <td>Yes</td>
+                  <td>As at the file date</td>
+                </tr>
+                <tr>
+                  <td>
+                    <b>Can support monitoring</b>
+                  </td>
+                  <td>
+                    <b>Yes</b>
+                  </td>
+                  <td>
+                    <b>No</b>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Works with all 13 sources</td>
+                  <td>Yes</td>
+                  <td>Yes</td>
+                </tr>
+              </tbody>
+            </table>
+          </Card>
+
+
+        </div>
       </div>
-      {error ? <div className="upload-mono-toast upload-mono-toast-error">{error}</div> : null}
-    </div>
+    </>
   );
 }
 
@@ -150,7 +276,6 @@ function isAllowedStatementFile(file: File): boolean {
 }
 
 export function UploadPage() {
-  const { theme, toggleTheme } = useScanwickChrome();
   const navigate = useNavigate();
   const { user } = useAuth();
   const merchantId = user?.merchant_id ?? null;
@@ -535,8 +660,6 @@ export function UploadPage() {
   if (screen === "mapping-review" && mappingDetail) {
     return (
       <MappingReviewPage
-        theme={theme}
-        onToggleTheme={toggleTheme}
         analyzerType={mappingAnalyzerType}
         mapping={mappingDetail}
         confirming={confirmingMapping}
@@ -550,8 +673,6 @@ export function UploadPage() {
   if (screen === "review" && qualityData) {
     return (
       <DataQualityReportPage
-        theme={theme}
-        onToggleTheme={toggleTheme}
         fileName={fileName}
         uploadedAt={uploadedAt}
         formatTab={pendingFile?.name.toLowerCase().endsWith(".pdf") ? "pdf" : "csv"}
@@ -563,56 +684,45 @@ export function UploadPage() {
     );
   }
 
-  const stepperStep1 =
-    screen === "hub" ? "on" : screen === "processing" || screen === "review" || screen === "statement" || screen === "password" || screen === "rejected" || screen === "mono" ? "done" : "on";
-  const stepperStep2 = screen === "processing" ? "on" : screen === "review" ? "done" : "";
-  const stepperStep3 = screen === "review" ? "on" : "";
+  // 1 Add accounts · 2 Processing · 3 Review coverage · 4 Your money —
+  // the prototype's stepper, shown on every ingestion screen.
+  const currentStep = screen === "processing" ? 1 : screen === "review" ? 2 : 0;
+
+  const heading =
+    screen === "hub"
+      ? { title: "Add accounts", meta: "13 sources · connect by API where available, upload a file otherwise" }
+      : screen === "statement"
+        ? { title: "Upload statement", meta: "PDF, XLS, XLSX or CSV · including password-protected files" }
+        : screen === "password"
+          ? { title: "Password-protected PDF", meta: "Common in Nigeria — most banks email statements locked" }
+          : screen === "rejected"
+            ? { title: "Rejected", meta: "Nothing was analysed from this file" }
+            : screen === "mono"
+              ? { title: "Connect account", meta: `Tier A · live connection for ${selectedSource.label}` }
+              : screen === "csv"
+                ? { title: "CSV upload", meta: "A transactions or orders export, mapped column by column" }
+                : { title: "Processing", meta: "You can leave this page — we will email you when it is ready" };
 
   return (
-    <main className={`scanwick-page upload-page ${theme === "light" ? "theme-light" : ""}`}>
-      <AppTopbar theme={theme} onToggleTheme={toggleTheme} onReset={goHub} />
+    <AppShell>
+      <ScreenFrame>
+        <ScreenHead title={heading.title} meta={heading.meta} tag="Ingestion" />
+        <Stepper steps={["Add accounts", "Processing", "Review coverage", "Your money"]} current={currentStep} />
 
-      <section className="upload-main">
-        <div className="upload-inner upload-inner-wide">
-          <div className="upload-heading">
-            <h1>
-              {screen === "hub"
-                ? "Add accounts"
-                : screen === "statement" || screen === "password" || screen === "rejected"
-                  ? "Upload statement"
-                  : screen === "mono"
-                    ? "Connect account"
-                    : screen === "csv"
-                      ? "CSV upload"
-                      : screen === "processing"
-                        ? "Processing"
-                        : "Add accounts"}
-            </h1>
-            <p>
-              {screen === "hub"
-                ? "13 sources · connect by API where available, upload a file otherwise"
-                : screen === "statement"
-                  ? "PDF, XLS, XLSX or CSV · including password-protected files"
-                  : screen === "mono"
-                    ? `Tier A · live connection for ${selectedSource.label}`
-                    : "Bring in a statement or store export. Every upload is validated before you see a dashboard."}
-            </p>
-          </div>
-
-          <div className="ing-stepper" aria-label="Ingestion steps">
-            <div className={stepperStep1}>1 · Add accounts</div>
-            <div className={stepperStep2}>2 · Processing</div>
-            <div className={stepperStep3}>3 · Review coverage</div>
-            <div>4 · Your money</div>
-          </div>
-
-          <div className="upload-card">
+        <div>
             {screen === "hub" ? (
               <>
-                <div className="ing-hub-toolbar">
-                  <button type="button" className="ing-btn ing-btn-ghost" onClick={() => { clearFileState(); setScreen("csv"); }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+                  <Btn
+                    tone="gho"
+                    sm
+                    onClick={() => {
+                      clearFileState();
+                      setScreen("csv");
+                    }}
+                  >
                     CSV / commerce upload
-                  </button>
+                  </Btn>
                 </div>
                 <SourceHub
                   sources={BANK_SOURCES}
@@ -632,9 +742,9 @@ export function UploadPage() {
             ) : null}
 
             {screen === "mono" && !merchantId ? (
-              <p className="upload-mono-intro">
-                Your account isn't fully set up yet. Please sign out and back in, then try again.
-              </p>
+              <Card>
+                <Hint>Your account isn't fully set up yet. Please sign out and back in, then try again.</Hint>
+              </Card>
             ) : null}
 
             {screen === "processing" ? (
@@ -681,20 +791,133 @@ export function UploadPage() {
             ) : null}
 
             {screen === "statement" ? (
-              <div className="ing-layout-split">
-                <div className="ing-layout-main">
-                  <button type="button" className="ing-back" onClick={goHub}>
-                    <ArrowLeft size={14} strokeWidth={2.4} />
-                    All sources
-                  </button>
-                  <h3 className="ing-statement-title">Upload your {selectedSource.label} statement</h3>
-                  <p className="ing-statement-sub">
-                    Download it from your bank app or internet banking, then drop it here.
-                  </p>
+              <>
+                <Btn tone="gho" sm style={{ marginBottom: 14 }} onClick={goHub}>
+                  <ArrowLeft size={14} strokeWidth={2.4} />
+                  All sources
+                </Btn>
+                <Row cols="21">
+                  <Card
+                    title={`Upload your ${selectedSource.label} statement`}
+                    sub="Download it from your bank app or internet banking, then drop it here."
+                  >
+                    {!pendingFile || dropState === "error" ? (
+                      <div
+                        className="ph"
+                        style={{
+                          height: 170,
+                          flexDirection: "column",
+                          gap: 9,
+                          cursor: "pointer",
+                          borderColor: dropState === "error" ? "var(--stop)" : undefined,
+                          borderStyle: dropState === "dragging" ? "solid" : "dashed",
+                          background: dropState === "error" ? "var(--stopbg)" : undefined,
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onClick={handleBrowse}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") handleBrowse();
+                        }}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                      >
+                        <ArrowUp size={26} strokeWidth={2.2} />
+                        <b style={{ color: dropState === "error" ? "var(--stop)" : "var(--ink)" }}>
+                          {dropState === "dragging"
+                            ? "Release to upload"
+                            : dropState === "error"
+                              ? errorHeading
+                              : "Drop your statement here"}
+                        </b>
+                        <span>
+                          {dropState !== "error"
+                            ? "or click to browse — PDF, XLS, XLSX, CSV up to 20MB"
+                            : errorDetail}
+                        </span>
+                        {dropState === "error" ? (
+                          <Btn
+                            sm
+                            tone="sec"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setDropState("idle");
+                              setErrorHeading("");
+                              setErrorDetail("");
+                            }}
+                          >
+                            Choose another file
+                          </Btn>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <FileReadyCard
+                        fileName={fileName}
+                        fileSizeLabel={formatFileSize(pendingFile.size)}
+                        analysing={analysing}
+                        onAnalyse={() => void analysePendingFile()}
+                        onClear={() => {
+                          setPendingFile(null);
+                          setFileName("");
+                          setDropState("idle");
+                        }}
+                      />
+                    )}
+                  </Card>
+                  <SourceGuide source={selectedSource} />
+                </Row>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={STATEMENT_ACCEPT}
+                  style={{ display: "none" }}
+                  onChange={handleFileInputChange}
+                  aria-label="Upload a statement file"
+                />
+              </>
+            ) : null}
 
-                  {!pendingFile || dropState === "error" ? (
+            {screen === "csv" ? (
+              <>
+                <Btn tone="gho" sm style={{ marginBottom: 14 }} onClick={goHub}>
+                  <ArrowLeft size={14} strokeWidth={2.4} />
+                  All sources
+                </Btn>
+                <Row cols="21">
+                  <Card
+                    title="Upload a CSV export"
+                    sub="A transactions export from a bank, or an orders export from your shop."
+                  >
+                    <div className="field">
+                      <label>What is in this file?</label>
+                      <div role="radiogroup" aria-label="Analyzer type" style={{ display: "flex", gap: 8 }}>
+                        {analyzerTypes.map((analyzer) => (
+                          <button
+                            key={analyzer.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={analyzerType === analyzer.id}
+                            className={`btn sm ${analyzerType === analyzer.id ? "" : "gho"}`}
+                            onClick={() => setAnalyzerType(analyzer.id)}
+                          >
+                            {analyzer.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <div
-                      className={`upload-dropzone upload-dropzone-${dropState}`}
+                      className="ph"
+                      style={{
+                        height: 170,
+                        flexDirection: "column",
+                        gap: 9,
+                        cursor: "pointer",
+                        borderColor: dropState === "error" ? "var(--stop)" : undefined,
+                        borderStyle: dropState === "dragging" ? "solid" : "dashed",
+                        background: dropState === "error" ? "var(--stopbg)" : undefined,
+                      }}
                       role="button"
                       tabIndex={0}
                       onClick={handleBrowse}
@@ -706,125 +929,37 @@ export function UploadPage() {
                       onDrop={handleDrop}
                     >
                       <ArrowUp size={26} strokeWidth={2.2} />
-                      <strong>
+                      <b style={{ color: dropState === "error" ? "var(--stop)" : "var(--ink)" }}>
                         {dropState === "dragging"
                           ? "Release to upload"
                           : dropState === "error"
                             ? errorHeading
-                            : "Drop your statement here"}
-                      </strong>
-                      {dropState !== "error" ? (
-                        <span>or click to browse — PDF, XLS, XLSX, CSV up to 20MB</span>
-                      ) : (
-                        <span>{errorDetail}</span>
-                      )}
-                      {dropState === "error" ? (
-                        <button
-                          type="button"
-                          className="upload-choose-another"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setDropState("idle");
-                            setErrorHeading("");
-                            setErrorDetail("");
-                          }}
-                        >
-                          Choose another file
-                        </button>
-                      ) : null}
+                            : "Drop your CSV here"}
+                      </b>
+                      <span>
+                        {dropState !== "error"
+                          ? analyzerType === "finance"
+                            ? "or click to browse — CSV up to 10MB · bank transactions export"
+                            : "or click to browse — CSV up to 10MB · store orders export"
+                          : errorDetail}
+                      </span>
                     </div>
-                  ) : (
-                    <FileReadyCard
-                      fileName={fileName}
-                      fileSizeLabel={formatFileSize(pendingFile.size)}
-                      analysing={analysing}
-                      onAnalyse={() => void analysePendingFile()}
-                      onClear={() => {
-                        setPendingFile(null);
-                        setFileName("");
-                        setDropState("idle");
-                      }}
-                    />
-                  )}
-                </div>
-                <SourceGuide source={selectedSource} />
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={STATEMENT_ACCEPT}
-                  className="upload-hidden-input"
-                  onChange={handleFileInputChange}
-                  aria-label="Upload a statement file"
-                />
-              </div>
-            ) : null}
+                  </Card>
 
-            {screen === "csv" ? (
-              <div>
-                <button type="button" className="ing-back" onClick={goHub}>
-                  <ArrowLeft size={14} strokeWidth={2.4} />
-                  All sources
-                </button>
-                <div className="upload-analyzer-row">
-                  <span className="upload-analyzer-label">Analyzer type</span>
-                  <div className="upload-analyzer-pills" role="radiogroup" aria-label="Analyzer type">
-                    {analyzerTypes.map((analyzer) => (
-                      <button
-                        key={analyzer.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={analyzerType === analyzer.id}
-                        className={`upload-pill ${analyzerType === analyzer.id ? "is-active" : ""}`}
-                        onClick={() => setAnalyzerType(analyzer.id)}
-                      >
-                        {analyzer.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div
-                  className={`upload-dropzone upload-dropzone-${dropState}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={handleBrowse}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") handleBrowse();
-                  }}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  <ArrowUp size={26} strokeWidth={2.2} />
-                  <strong>
-                    {dropState === "dragging"
-                      ? "Release to upload"
-                      : dropState === "error"
-                        ? errorHeading
-                        : "Drag & drop, or click to browse"}
-                  </strong>
-                  {dropState !== "error" ? (
-                    <span>
-                      {analyzerType === "finance"
-                        ? "CSV up to 10MB · bank transactions export"
-                        : "CSV up to 10MB · store orders export"}
-                    </span>
-                  ) : (
-                    <span>{errorDetail}</span>
-                  )}
-                </div>
+
+                </Row>
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept=".csv"
-                  className="upload-hidden-input"
+                  style={{ display: "none" }}
                   onChange={handleFileInputChange}
                   aria-label="Upload a CSV file"
                 />
-              </div>
+              </>
             ) : null}
-          </div>
         </div>
-      </section>
-    </main>
+      </ScreenFrame>
+    </AppShell>
   );
 }
