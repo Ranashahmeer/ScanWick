@@ -81,7 +81,7 @@ export function DataQualityReportPage({
 
           <MappingAppliedCard summary={report.mappingApplied} />
 
-          <WarningsList items={report.warnings} />
+          <WarningsList items={report.warnings} onFix={onFixReupload} />
 
           {report.disabledFeatures.length > 0 ? (
             <DisabledFeaturesList items={report.disabledFeatures} />
@@ -90,8 +90,8 @@ export function DataQualityReportPage({
           <ReportActions
             onProceed={onProceed}
             onFixReupload={onFixReupload}
-            primaryLabel={report.state === "failed" ? "Resolve errors to proceed" : "Proceed to dashboard"}
-            primaryDisabled={report.state === "failed"}
+            isFailed={report.state === "failed"}
+            primaryLabel={report.state === "failed" ? "Resolve errors & re-upload" : "Proceed to dashboard"}
           />
         </div>
       </section>

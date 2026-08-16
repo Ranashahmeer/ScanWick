@@ -34,17 +34,17 @@ export function AvgMonthlyBalancePage({ accountId }: { accountId: string }) {
           <div className="fi-grid-3">
             <div className="fi-card fi-stat-tile">
               <span className="fi-stat-label">ABM · 3-month</span>
-              <span className="fi-stat-value">{data.abm_3m !== null ? data.abm_3m.toLocaleString() : "—"}</span>
+              <span className="fi-stat-value sw-num">{data.abm_3m !== null ? `₦${data.abm_3m.toLocaleString()}` : <span className="na">Unavailable</span>}</span>
             </div>
 
             <div className="fi-card fi-stat-tile">
               <span className="fi-stat-label">ABM · 6-month</span>
-              <span className="fi-stat-value">{data.abm_6m !== null ? data.abm_6m.toLocaleString() : "—"}</span>
+              <span className="fi-stat-value sw-num">{data.abm_6m !== null ? `₦${data.abm_6m.toLocaleString()}` : <span className="na">Unavailable</span>}</span>
             </div>
 
             <div className="fi-card fi-stat-tile">
               <span className="fi-stat-label">ABM · 12-month</span>
-              <span className="fi-stat-value">{data.abm_12m !== null ? data.abm_12m.toLocaleString() : "—"}</span>
+              <span className="fi-stat-value sw-num">{data.abm_12m !== null ? `₦${data.abm_12m.toLocaleString()}` : <span className="na">Unavailable</span>}</span>
             </div>
           </div>
 

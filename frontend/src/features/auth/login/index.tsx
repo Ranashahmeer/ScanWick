@@ -218,17 +218,15 @@ export default function Login({ redirectTo }: LoginProps) {
   }
 
   return (
-    <div className="h-screen flex flex-col justify-center items-center gap-[24px]">
+    <div className="min-h-screen bg-gradient-to-br from-[#F7F9F8] via-[#EDF5F0] to-[#E2F0E7] flex flex-col justify-center items-center px-4 py-12">
+      <div className="w-full max-w-md flex flex-col gap-3">
+        {alertMessage}
 
-        <div className="w-sm sm:max-w-md flex flex-col gap-[8px]">
-          {alertMessage}
-        </div>
-
-      <Card className="w-full sm:max-w-md">
-        <AuthHeader
-          title="Welcome Back, User"
-          desc="Sign in to access your account"
-        />
+        <Card className="w-full bg-white/95 backdrop-blur-sm border border-[#DCE3DF]/60 shadow-[0_2px_4px_rgba(0,0,0,0.04),0_12px_40px_rgba(0,34,15,0.08)] rounded-2xl p-4 sm:p-6">
+          <AuthHeader
+            title="Welcome back"
+            desc="Sign in to your Scanwick account"
+          />
 
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -284,6 +282,7 @@ export default function Login({ redirectTo }: LoginProps) {
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

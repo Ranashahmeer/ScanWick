@@ -90,19 +90,19 @@ export function LoanReadinessPage({ accountId }: { accountId: string }) {
               <div className="fi-item-list">
                 <div className="fi-item-row">
                   <span className="fi-item-name">Est. available income</span>
-                  <span className="fi-item-meta"><span className="fi-item-value">{data.estimated_debt_coverage_indicator.estimated_available_income}</span></span>
+                  <span className="fi-item-meta"><span className="fi-item-value sw-num">{data.estimated_debt_coverage_indicator.estimated_available_income || <span className="na">Unavailable</span>}</span></span>
                 </div>
                 <div className="fi-item-row">
                   <span className="fi-item-name">Est. monthly debt obligations</span>
-                  <span className="fi-item-meta"><span className="fi-item-value">{data.estimated_debt_coverage_indicator.estimated_monthly_debt_obligations}</span></span>
+                  <span className="fi-item-meta"><span className="fi-item-value sw-num">{data.estimated_debt_coverage_indicator.estimated_monthly_debt_obligations || <span className="na">Unavailable</span>}</span></span>
                 </div>
                 <div className="fi-item-row">
                   <span className="fi-item-name">Coverage ratio</span>
                   <span className="fi-item-meta">
-                    <span className="fi-item-value">
+                    <span className="fi-item-value sw-num">
                       {data.estimated_debt_coverage_indicator.coverage_ratio !== null
                         ? data.estimated_debt_coverage_indicator.coverage_ratio.toFixed(2)
-                        : "—"}
+                        : <span className="na">Unavailable</span>}
                     </span>
                   </span>
                 </div>

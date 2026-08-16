@@ -100,6 +100,7 @@ export default function Dashboard() {
         <IntelligenceSidebar
           title="Finance Intelligence"
           groups={sectionGroups.map((group) => ({
+            title: group.title,
             items: group.items.map((item) => ({
               ...item,
               locked: getFeatureAccess(permissions, item.featureKey, tier)?.level === "none",

@@ -12,7 +12,13 @@ const severityLabel: Record<WarningSeverity, string> = {
   warning: "Warning",
 };
 
-export function WarningsList({ items }: { items: WarningItem[] }) {
+export function WarningsList({
+  items,
+  onFix,
+}: {
+  items: WarningItem[];
+  onFix?: () => void;
+}) {
   if (items.length === 0) return null;
 
   return (
@@ -29,7 +35,17 @@ export function WarningsList({ items }: { items: WarningItem[] }) {
               <strong>{item.field}</strong>
             </div>
             <p className="dqr-warning-desc">{item.description}</p>
-            <p className="dqr-warning-fix">Fix &rarr; {item.fix}</p>
+            {onFix ? (
+              <button
+                type="button"
+                className="dqr-warning-fix-btn"
+                onClick={onFix}
+              >
+                Fix &rarr; {item.fix}
+              </button>
+            ) : (
+              <p className="dqr-warning-fix">Fix &rarr; {item.fix}</p>
+            )}
           </div>
         ))}
       </div>

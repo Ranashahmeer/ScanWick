@@ -191,6 +191,7 @@ export function NotificationCenterPage() {
                         <strong>{item.title}</strong>
                         <p>{item.description}</p>
                       </div>
+                      <span className={`notif-badge notif-badge-${item.severity}`}>{item.severity}</span>
                       <span className="notif-time">{item.time}</span>
                     </div>
                   ))}

@@ -115,17 +115,24 @@ export function Header({ theme, onToggleTheme }: HeaderProps) {
             {isLight ? <Moon size={15} strokeWidth={2.4} /> : <Sun size={15} strokeWidth={2.4} />}
           </button>
           {isAuthenticated ? (
-            <Link to="/upload" className="scanwick-sign-in">
-              Go to app
-            </Link>
+            <>
+              <Link to="/dashboard" className="scanwick-sign-in" style={{ fontWeight: 600 }}>
+                Dashboard
+              </Link>
+              <Link to="/upload" className="scanwick-upload">
+                Upload
+              </Link>
+            </>
           ) : (
-            <Link to="/login" className="scanwick-sign-in">
-              Sign in
-            </Link>
+            <>
+              <Link to="/login" className="scanwick-sign-in">
+                Sign in
+              </Link>
+              <Link to="/upload" className="scanwick-upload">
+                Get Started Free
+              </Link>
+            </>
           )}
-          <Link to="/upload" className="scanwick-upload">
-            Upload CV - It's Free
-          </Link>
         </div>
       </nav>
     </header>

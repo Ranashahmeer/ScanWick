@@ -35,6 +35,7 @@ export default function CommerceIntelligence() {
         <IntelligenceSidebar
           title="Commerce Intelligence"
           groups={sectionGroups.map((group) => ({
+            title: "title" in group ? (group as { title?: string }).title : undefined,
             items: group.items.map((item) => ({
               ...item,
               locked: getFeatureAccess(permissions, item.featureKey, tier)?.level === "none",

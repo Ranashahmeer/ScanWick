@@ -56,14 +56,18 @@ export function clearTokens(): void {
   removeCookie(REFRESH_TOKEN_COOKIE)
 }
 
-// Call after clearing this tab's own tokens on logout, to notify every other
-// open tab to do the same. Best-effort: if localStorage is unavailable
-// (privacy mode, quota), cross-tab sync just doesn't happen — it never
-// blocks the local logout itself.
 export function broadcastLogout(): void {
   try {
     localStorage.setItem(LOGOUT_BROADCAST_KEY, Date.now().toString())
   } catch {
-    // Ignore — see comment above.
+    // Ignore
   }
 }
+
+export function logoutUser(): void {
+  clearTokens();
+  broadcastLogout();
+  authStore.setUnauthenticated();
+  window.location.href = "/login";
+}
+

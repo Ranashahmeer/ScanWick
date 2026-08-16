@@ -58,7 +58,7 @@ export function StatTile({ label, value, delta, onReconcile }: StatTileData) {
   return (
     <div className="fi-card fi-stat-tile">
       <span className="fi-stat-label">{label}</span>
-      <span className="fi-stat-value">{value}</span>
+      <span className="fi-stat-value sw-num">{value}</span>
       {delta ? (
         <span className={`fi-stat-delta ${delta.direction === "up" ? "fi-stat-delta-up" : "fi-stat-delta-down"}`}>
           {delta.direction === "up" ? (
@@ -102,7 +102,7 @@ export function BarList({
         <div className="fi-bar-row" key={item.label}>
           <div className="fi-bar-row-head">
             <span>{item.label}</span>
-            <strong>{item.value}</strong>
+            <strong className="sw-num">{item.value}</strong>
           </div>
           <div className="fi-bar-track">
             <div className="fi-bar-fill" style={{ width: `${item.percent}%` }} />
@@ -124,8 +124,8 @@ export function ItemList({
         <div className="fi-item-row" key={item.name}>
           <span className="fi-item-name">{item.name}</span>
           <span className="fi-item-meta">
-            <span className="fi-item-value">{item.value}</span>
-            <span className="fi-item-pct">{item.pct}</span>
+            <span className="fi-item-value sw-num">{item.value}</span>
+            <span className="fi-item-pct sw-num">{item.pct}</span>
           </span>
         </div>
       ))}

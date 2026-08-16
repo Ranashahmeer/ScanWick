@@ -21,15 +21,13 @@ export interface SectionConfig {
 }
 
 export interface SectionGroup {
+  title?: string;
   items: SectionConfig[];
 }
 
-// statement-integrity was removed here — its only data (statement_integrity)
-// already ships as a sub-object of predictive/fraud-risk, and is shown on
-// the Fraud Risk page; a standalone page would just be a duplicate slice of
-// the same endpoint. See docs/INTEGRATION_PLAN.md Phase 6.
 export const sectionGroups: SectionGroup[] = [
   {
+    title: "Surface 1 · Cash & Behavior",
     items: [
       { id: "financial-summary", label: "Financial Summary", featureKey: "bank.dashboard_summary" },
       { id: "income-stability", label: "Income Stability", featureKey: "bank.income_stability" },
@@ -39,6 +37,7 @@ export const sectionGroups: SectionGroup[] = [
     ],
   },
   {
+    title: "Surface 2 · Lending & Forecast",
     items: [
       { id: "loan-readiness", label: "Loan Readiness", featureKey: "bank.loan_readiness" },
       { id: "90-day-forecast", label: "90-Day Forecast", featureKey: "bank.cashflow_forecast" },
